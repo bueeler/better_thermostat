@@ -1187,6 +1187,9 @@ class BetterThermostat(ClimateEntity, RestoreEntity, ABC):
         """
         if hvac_mode in (HVACMode.HEAT, HVACMode.HEAT_COOL, HVACMode.OFF):
             self.bt_hvac_mode = get_hvac_bt_mode(self, hvac_mode)
+            _LOGGER.error(
+                "better_thermostat %s: async_set_hvac_mode - set hvac_mode %s", self.name, hvac_mode
+            )
         else:
             _LOGGER.error(
                 "better_thermostat %s: Unsupported hvac_mode %s", self.name, hvac_mode
@@ -1214,6 +1217,11 @@ class BetterThermostat(ClimateEntity, RestoreEntity, ABC):
             hvac_mode = str(kwargs.get(ATTR_HVAC_MODE, None))
             if hvac_mode in (HVACMode.HEAT, HVACMode.HEAT_COOL, HVACMode.OFF):
                 self.bt_hvac_mode = hvac_mode
+                _LOGGER.debug(
+                    "better_thermostat %s: async_set_temperature - set hvac_mode %s",
+                    self.name,
+                    hvac_mode,
+                )
             else:
                 _LOGGER.error(
                     "better_thermostat %s: Unsupported hvac_mode %s",
