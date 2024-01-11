@@ -140,6 +140,9 @@ async def trigger_trv_change(self, event):
                 and self.real_trvs[entity_id]["last_hvac_mode"] != _org_trv_state.state
             ):
                 self.bt_hvac_mode = mapped_state
+                _LOGGER.debug(
+                    f"better_thermostat {self.name}: set bt_hvac_mode: {self.bt_hvac_mode}"
+                )
 
     _main_key = "temperature"
     if "temperature" not in old_state.attributes:
@@ -203,11 +206,23 @@ async def trigger_trv_change(self, event):
             _main_change = True
 
         if self.real_trvs[entity_id]["advanced"].get("no_off_system_mode", False):
-            if _new_heating_setpoint == self.real_trvs[entity_id]["min_temp"]:
-                self.bt_hvac_mode = HVACMode.OFF
+            if self.window_open is False:
+                if _new_heating_setpoint == self.real_trvs[entity_id]["min_temp"]:
+                    self.bt_hvac_mode = HVACMode.OFF
+                    _LOGGER.debug(
+                        f"better_thermostat {self.name}: trigger_trv_change TRV {entity_id} set bt_hvac_mode to {self.bt_hvac_mode}"
+                    )
+                else:
+                    self.bt_hvac_mode = HVACMode.HEAT
+                    _LOGGER.debug(
+                        f"better_thermostat {self.name}: trigger_trv_change TRV {entity_id} set bt_hvac_mode to {self.bt_hvac_mode}"
+                    )
+                _main_change = True
             else:
-                self.bt_hvac_mode = HVACMode.HEAT
-            _main_change = True
+                _LOGGER.debug(
+                    f"better_thermostat {self.name}: trigger_trv_change TRV {entity_id} do not change bt_hvac_mode as window is open"
+                )
+
 
     if _main_change is True:
         self.async_write_ha_state()
@@ -320,6 +335,13 @@ def convert_outbound_states(self, entity_id, hvac_mode) -> Union[dict, None]:
     _new_local_calibration = None
     _new_heating_setpoint = None
 
+    _LOGGER.debug(
+        "better_thermostat %s: %s - convert_outbound_states *1*: hvac_mode: %s",
+        self.name,
+        entity_id,
+        hvac_mode
+    )
+
     try:
         _calibration_type = self.real_trvs[entity_id]["advanced"].get("calibration")
         _calibration_mode = self.real_trvs[entity_id]["advanced"].get(
@@ -359,6 +381,13 @@ def convert_outbound_states(self, entity_id, hvac_mode) -> Union[dict, None]:
             # Handling different devices with or without system mode reported or contained in the device config
 
             hvac_mode = mode_remap(self, entity_id, str(hvac_mode), False)
+
+            _LOGGER.debug(
+                "better_thermostat %s: %s - convert_outbound_states *2*: hvac_mode: %s",
+                self.name,
+                entity_id,
+                hvac_mode
+            )
 
             if _has_system_mode is False:
                 _LOGGER.debug(

@@ -162,6 +162,16 @@ def calculate_calibration_setpoint(self, entity_id) -> Union[float, None]:
     _cur_external_temp = self.cur_temp
     _cur_target_temp = self.bt_target_temp
 
+    _LOGGER.debug(
+        "better_thermostat %s: %s - calculate_calibration_setpoint *1*: _cur_trv_temp_s: %s | _cur_external_temp: %s, "\
+              "_cur_target_temp: %s",
+        self.name,
+        entity_id,
+        _cur_trv_temp_s,
+        _cur_external_temp,
+        _cur_target_temp
+    )
+
     if None in (_cur_target_temp, _cur_external_temp, _cur_trv_temp_s):
         return None
 
@@ -171,10 +181,25 @@ def calculate_calibration_setpoint(self, entity_id) -> Union[float, None]:
         "calibration_mode", CalibrationMode.DEFAULT
     )
 
+    _LOGGER.debug(
+        "better_thermostat %s: %s - calculate_calibration_setpoint *2*: _calibrated_setpoint: %s | _calibration_mode: %s",
+        self.name,
+        entity_id,
+        _calibrated_setpoint,
+        _calibration_mode
+    )
+
     if _calibration_mode == CalibrationMode.AGGRESIVE_CALIBRATION:
         if self.attr_hvac_action == HVACAction.HEATING:
             if _calibrated_setpoint - _cur_trv_temp_s < 2.5:
                 _calibrated_setpoint += 2.5
+
+    _LOGGER.debug(
+        "better_thermostat %s: %s - calculate_calibration_setpoint *3*: _calibrated_setpoint: %s",
+        self.name,
+        entity_id,
+        _calibrated_setpoint
+    )
 
     if _calibration_mode == CalibrationMode.HEATING_POWER_CALIBRATION:
         if self.attr_hvac_action == HVACAction.HEATING:
@@ -184,12 +209,34 @@ def calculate_calibration_setpoint(self, entity_id) -> Union[float, None]:
                 * valve_position
             )
 
+    _LOGGER.debug(
+        "better_thermostat %s: %s - calculate_calibration_setpoint *3*: _calibrated_setpoint: %s",
+        self.name,
+        entity_id,
+        _calibrated_setpoint
+    )
+
     if self.attr_hvac_action == HVACAction.IDLE:
         if _calibrated_setpoint - _cur_trv_temp_s > 0.0:
             _calibrated_setpoint -= self.tolerance
 
+    _LOGGER.debug(
+        "better_thermostat %s: %s - calculate_calibration_setpoint *4*: _calibrated_setpoint: %s, self.tolerance: %s",
+        self.name,
+        entity_id,
+        _calibrated_setpoint,
+        self.tolerance
+    )
+
     _calibrated_setpoint = fix_target_temperature_calibration(
         self, entity_id, _calibrated_setpoint
+    )
+
+    _LOGGER.debug(
+        "better_thermostat %s: %s - calculate_calibration_setpoint *5*: _calibrated_setpoint: %s",
+        self.name,
+        entity_id,
+        _calibrated_setpoint
     )
 
     _overheating_protection = self.real_trvs[entity_id]["advanced"].get(
@@ -200,7 +247,21 @@ def calculate_calibration_setpoint(self, entity_id) -> Union[float, None]:
         if _cur_external_temp >= _cur_target_temp:
             _calibrated_setpoint -= (_cur_external_temp - _cur_target_temp) * 10.0
 
+    _LOGGER.debug(
+        "better_thermostat %s: %s - calculate_calibration_setpoint *6*: _calibrated_setpoint: %s",
+        self.name,
+        entity_id,
+        _calibrated_setpoint
+    )
+
     _calibrated_setpoint = round_down_to_half_degree(_calibrated_setpoint)
+
+    _LOGGER.debug(
+        "better_thermostat %s: %s - calculate_calibration_setpoint *7*: _calibrated_setpoint: %s",
+        self.name,
+        entity_id,
+        _calibrated_setpoint
+    )
 
     # check if new setpoint is inside the TRV's range, else set to min or max
     if _calibrated_setpoint < self.real_trvs[entity_id]["min_temp"]:
