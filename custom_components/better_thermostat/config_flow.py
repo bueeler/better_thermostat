@@ -444,9 +444,8 @@ def _build_user_fields(
 
     add_field(CONF_NAME, str, default=resolve(CONF_NAME, ""))
 
-    if is_create:
-        add_entity_selector(CONF_HEATER, domain="climate", multiple=True, required=True)
-        add_entity_selector(CONF_COOLER, domain="climate", multiple=False)
+    add_entity_selector(CONF_HEATER, domain="climate", multiple=True, required=True)
+    add_entity_selector(CONF_COOLER, domain="climate", multiple=False)
 
     add_entity_selector(
         CONF_SENSOR,
@@ -531,27 +530,21 @@ def _normalize_user_submission(
 
     normalized[CONF_NAME] = user_input.get(CONF_NAME, normalized.get(CONF_NAME, ""))
 
-    if mode == "create":
-        heaters_value = user_input.get(CONF_HEATER, normalized.get(CONF_HEATER, []))
-        if isinstance(heaters_value, list):
-            heaters_list = heaters_value
-        elif heaters_value is None:
-            heaters_list = []
-        else:
-            heaters_list = [heaters_value]
-        if heaters_list and isinstance(heaters_list[0], dict):
-            heaters_list = [
-                item.get("trv")
-                for item in heaters_list
-                if isinstance(item, dict) and item.get("trv")
-            ]
-        normalized[CONF_HEATER] = list(heaters_list)
-        normalized[CONF_COOLER] = user_input.get(
-            CONF_COOLER, normalized.get(CONF_COOLER)
-        )
+    heaters_value = user_input.get(CONF_HEATER, normalized.get(CONF_HEATER, []))
+    if isinstance(heaters_value, list):
+        heaters_list = heaters_value
+    elif heaters_value is None:
+        heaters_list = []
     else:
-        normalized[CONF_HEATER] = copy.deepcopy(normalized.get(CONF_HEATER, []))
-        normalized[CONF_COOLER] = normalized.get(CONF_COOLER)
+        heaters_list = [heaters_value]
+    if heaters_list and isinstance(heaters_list[0], dict):
+        heaters_list = [
+            item.get("trv")
+            for item in heaters_list
+            if isinstance(item, dict) and item.get("trv")
+        ]
+    normalized[CONF_HEATER] = list(heaters_list)
+    normalized[CONF_COOLER] = user_input.get(CONF_COOLER, normalized.get(CONF_COOLER))
 
     optional_keys = (
         CONF_SENSOR,
@@ -966,10 +959,43 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             _LOGGER.debug("OptionsFlow user step normalized data: %s", normalized)
             self.updated_config = normalized
             self.trv_bundle = []
-            for trv in normalized.get(CONF_HEATER, []):
-                trv_copy = copy.deepcopy(trv)
-                trv_copy["adapter"] = None
-                self.trv_bundle.append(trv_copy)
+
+            # Get the list of heaters from the normalized input
+            heaters = normalized.get(CONF_HEATER, [])
+
+            # Create a map of existing TRV configs by TRV ID
+            existing_trvs = {
+                trv.get("trv"): trv
+                for trv in self._config_entry.data.get(CONF_HEATER, [])
+                if isinstance(trv, dict) and trv.get("trv")
+            }
+
+            for heater_item in heaters:
+                if isinstance(heater_item, dict):
+                    trv_id = heater_item.get("trv")
+                else:
+                    trv_id = heater_item
+
+                if not trv_id:
+                    continue
+
+                if trv_id in existing_trvs:
+                    # Use existing config for this TRV
+                    trv_copy = copy.deepcopy(existing_trvs[trv_id])
+                    trv_copy["adapter"] = None
+                    self.trv_bundle.append(trv_copy)
+                else:
+                    # This is a new TRV added during edit
+                    integration = await get_trv_intigration(self, trv_id)
+                    self.trv_bundle.append(
+                        {
+                            "trv": trv_id,
+                            "integration": integration,
+                            "model": await get_device_model(self, trv_id),
+                            "adapter": await load_adapter(self, integration, trv_id),
+                        }
+                    )
+
             _LOGGER.debug("OptionsFlow user step built trv bundle: %s", self.trv_bundle)
 
             return await self.async_step_advanced(
