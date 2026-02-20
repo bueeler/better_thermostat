@@ -2,7 +2,6 @@
 
 from collections.abc import Callable
 import logging
-import time
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -111,7 +110,6 @@ async def _setup_algorithm_sensors(
             BetterThermostatMpcGainSensor(bt_climate),
             BetterThermostatMpcLossSensor(bt_climate),
             BetterThermostatMpcKaSensor(bt_climate),
-            BetterThermostatMpcStatusSensor(bt_climate),
         ]
         algorithm_sensors.extend(mpc_sensors)
 
@@ -1181,85 +1179,3 @@ class BetterThermostatSolarIntensitySensor(SensorEntity):
                 self._attr_native_value = 0.0
         except Exception:
             self._attr_native_value = None
-
-
-class BetterThermostatMpcStatusSensor(SensorEntity):
-    """Representation of a Better Thermostat MPC Status Sensor."""
-
-    _attr_has_entity_name = True
-    _attr_name = "Learning Status"
-    _attr_device_class = None
-    _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_should_poll = False
-    _attr_icon = "mdi:brain"
-
-    def __init__(self, bt_climate):
-        """Initialize the sensor."""
-        self._bt_climate = bt_climate
-        self._attr_unique_id = f"{bt_climate.unique_id}_mpc_status"
-        self._attr_device_info = bt_climate.device_info
-
-    async def async_added_to_hass(self):
-        """Register callbacks."""
-        if self._bt_climate.entity_id:
-            self.async_on_remove(
-                async_track_state_change_event(
-                    self.hass, [self._bt_climate.entity_id], self._on_climate_update
-                )
-            )
-        self._update_state()
-
-    @callback
-    def _on_climate_update(self, event):
-        """Handle climate entity update."""
-        self._update_state()
-        self.async_write_ha_state()
-
-    def _update_state(self):
-        """Update state from climate entity."""
-        created_ts = None
-        gain = None
-        loss = None
-        confidence = None
-
-        if hasattr(self._bt_climate, "real_trvs"):
-            for _, trv_data in self._bt_climate.real_trvs.items():
-                cal_bal = trv_data.get("calibration_balance")
-                if cal_bal and "debug" in cal_bal:
-                    debug = cal_bal["debug"]
-                    if "mpc_created_ts" in debug:
-                        created_ts = debug["mpc_created_ts"]
-                    if "mpc_gain" in debug:
-                        gain = debug["mpc_gain"]
-                    if "mpc_loss" in debug:
-                        loss = debug["mpc_loss"]
-                    if "trv_profile_conf" in debug:
-                        confidence = debug["trv_profile_conf"]
-
-                    if created_ts is not None:
-                        break
-
-        if created_ts is not None and created_ts > 0:
-            age_seconds = time.time() - float(created_ts)
-            days = age_seconds / 86400.0
-            confidence_val = float(confidence) if confidence is not None else 0.0
-
-            if days < 1.0:
-                self._attr_native_value = "training"
-            elif confidence_val >= 0.7:
-                self._attr_native_value = "trained"
-            elif confidence_val >= 0.4:
-                self._attr_native_value = "optimizing"
-            else:
-                self._attr_native_value = "training"
-
-            self._attr_extra_state_attributes = {
-                "created_at": float(created_ts),
-                "days_trained": round(days, 2),
-                "mpc_gain": gain,
-                "mpc_loss": loss,
-                "profile_confidence": confidence,
-            }
-        else:
-            self._attr_native_value = "unknown"
-            self._attr_extra_state_attributes = {}
