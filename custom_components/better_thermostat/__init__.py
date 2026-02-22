@@ -1,6 +1,7 @@
 """The better_thermostat component."""
 
 from asyncio import Lock
+from copy import deepcopy
 import logging
 
 from homeassistant.config_entries import ConfigEntry
@@ -17,6 +18,7 @@ from .utils.const import (
     CONF_WINDOW_TIMEOUT_AFTER,
     CalibrationMode,
 )
+from .utils.helpers import get_device_model
 
 _LOGGER = logging.getLogger(__name__)
 DOMAIN = "better_thermostat"
@@ -122,6 +124,22 @@ async def async_migrate_entry(hass, config_entry: ConfigEntry):
         # if "eco_temperature" not in new:
         #     new["eco_temperature"] = 18.0
         hass.config_entries.async_update_entry(config_entry, data=new, version=7)
+
+    if config_entry.version == 7:
+        new = deepcopy(dict(config_entry.data))
+        # Make sure all TRVs fetch the get_device_model method to update their model info, which is used for device-specific quirks again.
+        migration_context = type(
+            "MigrationContext",
+            (),
+            {"hass": hass, "device_name": config_entry.title, "model": None},
+        )()
+        for trv in new.get(CONF_HEATER, []):
+            entity_id = trv.get("entity_id")
+            if entity_id:
+                trv["model"] = await get_device_model(migration_context, entity_id)
+        # update the new config entry with the updated TRV model information
+
+        hass.config_entries.async_update_entry(config_entry, data=new, version=8)
 
     _LOGGER.info("Migration to version %s successful", config_entry.version)
 
