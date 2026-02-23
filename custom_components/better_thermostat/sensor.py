@@ -191,14 +191,8 @@ async def _handle_dynamic_entity_update(
         _LOGGER.info(
             "Better Thermostat %s: Algorithm configuration changed. Added: %s, Removed: %s",
             bt_climate.device_name,
-            [
-                alg.value
-                for alg in algorithms_added
-            ],
-            [
-                alg.value
-                for alg in algorithms_removed
-            ],
+            [alg.value for alg in algorithms_added],
+            [alg.value for alg in algorithms_removed],
         )
 
         # Setup only newly added algorithm-specific sensors
@@ -665,9 +659,7 @@ class _BtSimpleAttributeSensor(_BtSensorBase):
             try:
                 fval = float(val)  # type: ignore[arg-type]
                 self._attr_native_value = (
-                    round(fval, self._rounding)
-                    if self._rounding is not None
-                    else fval
+                    round(fval, self._rounding) if self._rounding is not None else fval
                 )
             except (ValueError, TypeError):
                 self._attr_native_value = None
@@ -839,7 +831,9 @@ class BetterThermostatSolarIntensitySensor(_BtSensorBase):
     _attr_device_class = None
     _attr_native_unit_of_measurement = "%"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_should_poll = True  # Weather entity updates not strictly coupled to climate state
+    _attr_should_poll = (
+        True  # Weather entity updates not strictly coupled to climate state
+    )
     _attr_icon = "mdi:solar-power"
     _unique_id_suffix = "solar_intensity"
 
