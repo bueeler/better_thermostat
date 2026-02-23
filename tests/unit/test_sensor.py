@@ -15,25 +15,25 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from custom_components.better_thermostat.sensor import (
+    _ACTIVE_ALGORITHM_ENTITIES,
+    _ACTIVE_PID_NUMBERS,
+    _ACTIVE_PRESET_NUMBERS,
+    _ACTIVE_SWITCH_ENTITIES,
+    _DISPATCHER_UNSUBSCRIBES,
+    _ENTITY_CLEANUP_CALLBACKS,
     BetterThermostatExternalTemp1hEMASensor,
     BetterThermostatExternalTempSensor,
-    BetterThermostatHeatLossSensor,
     BetterThermostatHeatingPowerSensor,
+    BetterThermostatHeatLossSensor,
     BetterThermostatMpcGainSensor,
     BetterThermostatMpcKaSensor,
     BetterThermostatMpcLossSensor,
     BetterThermostatSolarIntensitySensor,
     BetterThermostatTempSlopeSensor,
     BetterThermostatVirtualTempSensor,
-    _ACTIVE_ALGORITHM_ENTITIES,
-    _ACTIVE_PID_NUMBERS,
-    _ACTIVE_PRESET_NUMBERS,
-    _ACTIVE_SWITCH_ENTITIES,
     _BtMpcSensorBase,
     _BtSensorBase,
     _BtSimpleAttributeSensor,
-    _DISPATCHER_UNSUBSCRIBES,
-    _ENTITY_CLEANUP_CALLBACKS,
     _cleanup_pid_number_entities,
     _cleanup_pid_switch_entities,
     _cleanup_preset_number_entities,
@@ -55,6 +55,7 @@ DOMAIN = "better_thermostat"
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_bt_climate(**overrides):
     """Create a mock BT climate entity with sensible defaults."""
@@ -97,6 +98,7 @@ def _make_entity_registry():
 # Cleanup: reset module-level globals between tests
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(autouse=True)
 def _reset_globals():
     """Reset module-level tracking dicts before each test."""
@@ -119,33 +121,39 @@ def _reset_globals():
 # 1. External Temp Sensor (EMA)
 # ===========================================================================
 
+
 class TestExternalTempSensor:
     """Tests for BetterThermostatExternalTempSensor."""
 
     def test_unique_id(self):
+        """Unique id."""
         bt = _make_bt_climate()
         sensor = BetterThermostatExternalTempSensor(bt)
         assert sensor._attr_unique_id == "test_bt_123_external_temp_ema"
 
     def test_update_from_cur_temp_filtered(self):
+        """Update from cur temp filtered."""
         bt = _make_bt_climate(cur_temp_filtered=21.5)
         sensor = BetterThermostatExternalTempSensor(bt)
         sensor._update_state()
         assert sensor._attr_native_value == 21.5
 
     def test_fallback_to_external_temp_ema(self):
+        """Fallback to external temp ema."""
         bt = _make_bt_climate(cur_temp_filtered=None, external_temp_ema=22.3)
         sensor = BetterThermostatExternalTempSensor(bt)
         sensor._update_state()
         assert sensor._attr_native_value == 22.3
 
     def test_none_when_both_missing(self):
+        """None when both missing."""
         bt = _make_bt_climate(cur_temp_filtered=None, external_temp_ema=None)
         sensor = BetterThermostatExternalTempSensor(bt)
         sensor._update_state()
         assert sensor._attr_native_value is None
 
     def test_invalid_float_returns_none(self):
+        """Invalid float returns none."""
         bt = _make_bt_climate(cur_temp_filtered="not_a_number")
         sensor = BetterThermostatExternalTempSensor(bt)
         sensor._update_state()
@@ -163,15 +171,18 @@ class TestExternalTempSensor:
 # 2. External Temp 1h EMA Sensor
 # ===========================================================================
 
+
 class TestExternalTemp1hEMASensor:
     """Tests for BetterThermostatExternalTemp1hEMASensor."""
 
     def test_unique_id(self):
+        """Unique id."""
         bt = _make_bt_climate()
         sensor = BetterThermostatExternalTemp1hEMASensor(bt)
         assert sensor._attr_unique_id == "test_bt_123_external_temp_ema_1h"
 
     def test_first_update_sets_ema_directly(self):
+        """First update sets ema directly."""
         bt = _make_bt_climate(cur_temp_filtered=20.0)
         sensor = BetterThermostatExternalTemp1hEMASensor(bt)
         sensor._update_state()
@@ -179,6 +190,7 @@ class TestExternalTemp1hEMASensor:
         assert sensor._ema_value == 20.0
 
     def test_subsequent_update_applies_ema(self):
+        """Subsequent update applies ema."""
         bt = _make_bt_climate(cur_temp_filtered=20.0)
         sensor = BetterThermostatExternalTemp1hEMASensor(bt)
         sensor._update_state()  # first
@@ -214,12 +226,14 @@ class TestExternalTemp1hEMASensor:
         assert sensor._attr_native_value == 20.0
 
     def test_none_value_gives_none(self):
+        """None value gives none."""
         bt = _make_bt_climate(cur_temp_filtered=None, external_temp_ema=None)
         sensor = BetterThermostatExternalTemp1hEMASensor(bt)
         sensor._update_state()
         assert sensor._attr_native_value is None
 
     def test_invalid_float_gives_none(self):
+        """Invalid float gives none."""
         bt = _make_bt_climate(cur_temp_filtered="invalid")
         sensor = BetterThermostatExternalTemp1hEMASensor(bt)
         sensor._update_state()
@@ -242,52 +256,61 @@ class TestExternalTemp1hEMASensor:
 # 3. Simple attribute sensors (TempSlope, HeatingPower, HeatLoss)
 # ===========================================================================
 
+
 class TestSimpleAttributeSensors:
     """Tests for sensors that read a single attribute."""
 
     def test_temp_slope_with_value(self):
+        """Temp slope with value."""
         bt = _make_bt_climate(temp_slope=0.0123)
         sensor = BetterThermostatTempSlopeSensor(bt)
         sensor._update_state()
         assert sensor._attr_native_value == 0.0123
 
     def test_temp_slope_rounds_to_4_decimals(self):
+        """Temp slope rounds to 4 decimals."""
         bt = _make_bt_climate(temp_slope=0.01236789)
         sensor = BetterThermostatTempSlopeSensor(bt)
         sensor._update_state()
         assert sensor._attr_native_value == 0.0124
 
     def test_temp_slope_none(self):
+        """Temp slope none."""
         bt = _make_bt_climate(temp_slope=None)
         sensor = BetterThermostatTempSlopeSensor(bt)
         sensor._update_state()
         assert sensor._attr_native_value is None
 
     def test_heating_power_with_value(self):
+        """Heating power with value."""
         bt = _make_bt_climate(heating_power=0.05)
         sensor = BetterThermostatHeatingPowerSensor(bt)
         sensor._update_state()
         assert sensor._attr_native_value == 0.05
 
     def test_heating_power_none(self):
+        """Heating power none."""
         bt = _make_bt_climate(heating_power=None)
         sensor = BetterThermostatHeatingPowerSensor(bt)
         sensor._update_state()
         assert sensor._attr_native_value is None
 
     def test_heat_loss_with_value(self):
+        """Heat loss with value."""
         bt = _make_bt_climate(heat_loss_rate=0.03)
         sensor = BetterThermostatHeatLossSensor(bt)
         sensor._update_state()
         assert sensor._attr_native_value == 0.03
 
     def test_heat_loss_none(self):
+        """Heat loss none."""
         bt = _make_bt_climate(heat_loss_rate=None)
         sensor = BetterThermostatHeatLossSensor(bt)
         sensor._update_state()
         assert sensor._attr_native_value is None
 
     def test_invalid_string_returns_none(self):
+        """Invalid string returns none."""
         bt = _make_bt_climate(temp_slope="not_a_number")
         sensor = BetterThermostatTempSlopeSensor(bt)
         sensor._update_state()
@@ -298,59 +321,79 @@ class TestSimpleAttributeSensors:
 # 4. MPC Sensors (VirtualTemp, Gain, Loss, Ka) – availability & state
 # ===========================================================================
 
+
 class TestMpcSensorAvailability:
     """Tests for the shared availability logic of MPC sensors."""
 
-    @pytest.mark.parametrize("SensorClass", [
-        BetterThermostatVirtualTempSensor,
-        BetterThermostatMpcGainSensor,
-        BetterThermostatMpcLossSensor,
-        BetterThermostatMpcKaSensor,
-    ])
+    @pytest.mark.parametrize(
+        "SensorClass",
+        [
+            BetterThermostatVirtualTempSensor,
+            BetterThermostatMpcGainSensor,
+            BetterThermostatMpcLossSensor,
+            BetterThermostatMpcKaSensor,
+        ],
+    )
     def test_available_when_all_ok(self, SensorClass):
+        """Available when all ok."""
         bt = _make_bt_climate(_available=True, window_open=False, hvac_mode="heat")
         sensor = SensorClass(bt)
         assert sensor.available is True
 
-    @pytest.mark.parametrize("SensorClass", [
-        BetterThermostatVirtualTempSensor,
-        BetterThermostatMpcGainSensor,
-        BetterThermostatMpcLossSensor,
-        BetterThermostatMpcKaSensor,
-    ])
+    @pytest.mark.parametrize(
+        "SensorClass",
+        [
+            BetterThermostatVirtualTempSensor,
+            BetterThermostatMpcGainSensor,
+            BetterThermostatMpcLossSensor,
+            BetterThermostatMpcKaSensor,
+        ],
+    )
     def test_unavailable_when_climate_unavailable(self, SensorClass):
+        """Unavailable when climate unavailable."""
         bt = _make_bt_climate(_available=False)
         sensor = SensorClass(bt)
         assert sensor.available is False
 
-    @pytest.mark.parametrize("SensorClass", [
-        BetterThermostatVirtualTempSensor,
-        BetterThermostatMpcGainSensor,
-        BetterThermostatMpcLossSensor,
-        BetterThermostatMpcKaSensor,
-    ])
+    @pytest.mark.parametrize(
+        "SensorClass",
+        [
+            BetterThermostatVirtualTempSensor,
+            BetterThermostatMpcGainSensor,
+            BetterThermostatMpcLossSensor,
+            BetterThermostatMpcKaSensor,
+        ],
+    )
     def test_unavailable_when_window_open(self, SensorClass):
+        """Unavailable when window open."""
         bt = _make_bt_climate(window_open=True)
         sensor = SensorClass(bt)
         assert sensor.available is False
 
-    @pytest.mark.parametrize("SensorClass", [
-        BetterThermostatVirtualTempSensor,
-        BetterThermostatMpcGainSensor,
-        BetterThermostatMpcLossSensor,
-        BetterThermostatMpcKaSensor,
-    ])
+    @pytest.mark.parametrize(
+        "SensorClass",
+        [
+            BetterThermostatVirtualTempSensor,
+            BetterThermostatMpcGainSensor,
+            BetterThermostatMpcLossSensor,
+            BetterThermostatMpcKaSensor,
+        ],
+    )
     def test_unavailable_when_hvac_off(self, SensorClass):
+        """Unavailable when hvac off."""
         bt = _make_bt_climate(hvac_mode="off")
         sensor = SensorClass(bt)
         assert sensor.available is False
 
-    @pytest.mark.parametrize("SensorClass", [
-        BetterThermostatVirtualTempSensor,
-        BetterThermostatMpcGainSensor,
-        BetterThermostatMpcLossSensor,
-        BetterThermostatMpcKaSensor,
-    ])
+    @pytest.mark.parametrize(
+        "SensorClass",
+        [
+            BetterThermostatVirtualTempSensor,
+            BetterThermostatMpcGainSensor,
+            BetterThermostatMpcLossSensor,
+            BetterThermostatMpcKaSensor,
+        ],
+    )
     def test_available_false_when_not_available(self, SensorClass):
         """If _available is False, sensor should be unavailable."""
         bt = _make_bt_climate()
@@ -363,74 +406,83 @@ class TestMpcSensorState:
     """Tests for MPC sensor state retrieval from calibration_balance debug."""
 
     def _make_trv_with_debug(self, **debug_values):
-        return {
-            "trv_1": {
-                "calibration_balance": {
-                    "debug": debug_values,
-                },
-            }
-        }
+        return {"trv_1": {"calibration_balance": {"debug": debug_values}}}
 
     def test_virtual_temp_reads_from_debug(self):
-        bt = _make_bt_climate(real_trvs=self._make_trv_with_debug(mpc_virtual_temp=22.5))
+        """Virtual temp reads from debug."""
+        bt = _make_bt_climate(
+            real_trvs=self._make_trv_with_debug(mpc_virtual_temp=22.5)
+        )
         sensor = BetterThermostatVirtualTempSensor(bt)
         sensor._update_state()
         assert sensor._attr_native_value == 22.5
 
     def test_mpc_gain_reads_from_debug(self):
+        """Mpc gain reads from debug."""
         bt = _make_bt_climate(real_trvs=self._make_trv_with_debug(mpc_gain=0.05))
         sensor = BetterThermostatMpcGainSensor(bt)
         sensor._update_state()
         assert sensor._attr_native_value == 0.05
 
     def test_mpc_loss_reads_from_debug(self):
+        """Mpc loss reads from debug."""
         bt = _make_bt_climate(real_trvs=self._make_trv_with_debug(mpc_loss=0.03))
         sensor = BetterThermostatMpcLossSensor(bt)
         sensor._update_state()
         assert sensor._attr_native_value == 0.03
 
     def test_mpc_ka_reads_from_debug(self):
+        """Mpc ka reads from debug."""
         bt = _make_bt_climate(real_trvs=self._make_trv_with_debug(mpc_ka=0.001))
         sensor = BetterThermostatMpcKaSensor(bt)
         sensor._update_state()
         assert sensor._attr_native_value == 0.001
 
     def test_no_calibration_balance_returns_none(self):
+        """No calibration balance returns none."""
         bt = _make_bt_climate(real_trvs={"trv_1": {}})
         sensor = BetterThermostatVirtualTempSensor(bt)
         sensor._update_state()
         assert sensor._attr_native_value is None
 
     def test_no_debug_key_returns_none(self):
+        """No debug key returns none."""
         bt = _make_bt_climate(real_trvs={"trv_1": {"calibration_balance": {}}})
         sensor = BetterThermostatVirtualTempSensor(bt)
         sensor._update_state()
         assert sensor._attr_native_value is None
 
     def test_real_trvs_none_returns_none(self):
+        """Real trvs none returns none."""
         bt = _make_bt_climate(real_trvs=None)
         sensor = BetterThermostatVirtualTempSensor(bt)
         sensor._update_state()
         assert sensor._attr_native_value is None
 
     def test_empty_real_trvs_returns_none(self):
+        """Empty real trvs returns none."""
         bt = _make_bt_climate(real_trvs={})
         sensor = BetterThermostatVirtualTempSensor(bt)
         sensor._update_state()
         assert sensor._attr_native_value is None
 
     def test_invalid_debug_value_returns_none(self):
-        bt = _make_bt_climate(real_trvs=self._make_trv_with_debug(mpc_virtual_temp="bad"))
+        """Invalid debug value returns none."""
+        bt = _make_bt_climate(
+            real_trvs=self._make_trv_with_debug(mpc_virtual_temp="bad")
+        )
         sensor = BetterThermostatVirtualTempSensor(bt)
         sensor._update_state()
         assert sensor._attr_native_value is None
 
     def test_first_trv_with_debug_wins(self):
         """When multiple TRVs exist, the first with debug data should be used."""
-        bt = _make_bt_climate(real_trvs={
-            "trv_1": {},
-            "trv_2": {"calibration_balance": {"debug": {"mpc_virtual_temp": 23.0}}},
-        })
+        bt = _make_bt_climate(
+            real_trvs={
+                "trv_1": {},
+                "trv_2": {"calibration_balance": {"debug": {"mpc_virtual_temp": 23.0}}},
+            }
+        )
         sensor = BetterThermostatVirtualTempSensor(bt)
         sensor._update_state()
         assert sensor._attr_native_value == 23.0
@@ -440,16 +492,19 @@ class TestMpcSensorState:
 # 5. Solar Intensity Sensor
 # ===========================================================================
 
+
 class TestSolarIntensitySensor:
     """Tests for BetterThermostatSolarIntensitySensor."""
 
     def test_unique_id(self):
+        """Unique id."""
         bt = _make_bt_climate()
         sensor = BetterThermostatSolarIntensitySensor(bt)
         assert sensor._attr_unique_id == "test_bt_123_solar_intensity"
 
     @patch("custom_components.better_thermostat.sensor._get_current_solar_intensity")
     def test_normal_value_converted_to_percent(self, mock_solar):
+        """Normal value converted to percent."""
         mock_solar.return_value = 0.75
         bt = _make_bt_climate()
         sensor = BetterThermostatSolarIntensitySensor(bt)
@@ -458,6 +513,7 @@ class TestSolarIntensitySensor:
 
     @patch("custom_components.better_thermostat.sensor._get_current_solar_intensity")
     def test_zero_intensity(self, mock_solar):
+        """Zero intensity."""
         mock_solar.return_value = 0.0
         bt = _make_bt_climate()
         sensor = BetterThermostatSolarIntensitySensor(bt)
@@ -475,6 +531,7 @@ class TestSolarIntensitySensor:
 
     @patch("custom_components.better_thermostat.sensor._get_current_solar_intensity")
     def test_exception_returns_none(self, mock_solar):
+        """Exception returns none."""
         mock_solar.side_effect = RuntimeError("weather unavailable")
         bt = _make_bt_climate()
         sensor = BetterThermostatSolarIntensitySensor(bt)
@@ -483,6 +540,7 @@ class TestSolarIntensitySensor:
 
     @patch("custom_components.better_thermostat.sensor._get_current_solar_intensity")
     def test_full_intensity_gives_100_percent(self, mock_solar):
+        """Full intensity gives 100 percent."""
         mock_solar.return_value = 1.0
         bt = _make_bt_climate()
         sensor = BetterThermostatSolarIntensitySensor(bt)
@@ -494,62 +552,86 @@ class TestSolarIntensitySensor:
 # 6. _get_active_algorithms
 # ===========================================================================
 
+
 class TestGetActiveAlgorithms:
     """Tests for _get_active_algorithms helper."""
 
     def test_no_real_trvs_returns_empty(self):
+        """No real trvs returns empty."""
         bt = _make_bt_climate(real_trvs={})
         assert _get_active_algorithms(bt) == set()
 
     def test_real_trvs_none_returns_empty(self):
+        """Real trvs none returns empty."""
         bt = _make_bt_climate(real_trvs=None)
         assert _get_active_algorithms(bt) == set()
 
     def test_mpc_calibration_detected(self):
-        bt = _make_bt_climate(real_trvs={
-            "trv_1": {"advanced": {CONF_CALIBRATION_MODE: CalibrationMode.MPC_CALIBRATION}},
-        })
+        """Mpc calibration detected."""
+        bt = _make_bt_climate(
+            real_trvs={
+                "trv_1": {
+                    "advanced": {CONF_CALIBRATION_MODE: CalibrationMode.MPC_CALIBRATION}
+                }
+            }
+        )
         result = _get_active_algorithms(bt)
         assert CalibrationMode.MPC_CALIBRATION in result
 
     def test_string_calibration_mode_converted(self):
         """String values should be auto-converted to CalibrationMode enum."""
-        bt = _make_bt_climate(real_trvs={
-            "trv_1": {"advanced": {CONF_CALIBRATION_MODE: "mpc_calibration"}},
-        })
+        bt = _make_bt_climate(
+            real_trvs={
+                "trv_1": {"advanced": {CONF_CALIBRATION_MODE: "mpc_calibration"}}
+            }
+        )
         result = _get_active_algorithms(bt)
         assert CalibrationMode.MPC_CALIBRATION in result
 
     def test_invalid_calibration_mode_skipped(self):
-        bt = _make_bt_climate(real_trvs={
-            "trv_1": {"advanced": {CONF_CALIBRATION_MODE: "totally_invalid_mode"}},
-        })
+        """Invalid calibration mode skipped."""
+        bt = _make_bt_climate(
+            real_trvs={
+                "trv_1": {"advanced": {CONF_CALIBRATION_MODE: "totally_invalid_mode"}}
+            }
+        )
         result = _get_active_algorithms(bt)
         assert result == set()
 
     def test_multiple_trvs_different_modes(self):
-        bt = _make_bt_climate(real_trvs={
-            "trv_1": {"advanced": {CONF_CALIBRATION_MODE: CalibrationMode.MPC_CALIBRATION}},
-            "trv_2": {"advanced": {CONF_CALIBRATION_MODE: CalibrationMode.PID_CALIBRATION}},
-        })
+        """Multiple trvs different modes."""
+        bt = _make_bt_climate(
+            real_trvs={
+                "trv_1": {
+                    "advanced": {CONF_CALIBRATION_MODE: CalibrationMode.MPC_CALIBRATION}
+                },
+                "trv_2": {
+                    "advanced": {CONF_CALIBRATION_MODE: CalibrationMode.PID_CALIBRATION}
+                },
+            }
+        )
         result = _get_active_algorithms(bt)
-        assert result == {CalibrationMode.MPC_CALIBRATION, CalibrationMode.PID_CALIBRATION}
+        assert result == {
+            CalibrationMode.MPC_CALIBRATION,
+            CalibrationMode.PID_CALIBRATION,
+        }
 
     def test_none_calibration_mode_skipped(self):
-        bt = _make_bt_climate(real_trvs={
-            "trv_1": {"advanced": {CONF_CALIBRATION_MODE: None}},
-        })
+        """None calibration mode skipped."""
+        bt = _make_bt_climate(
+            real_trvs={"trv_1": {"advanced": {CONF_CALIBRATION_MODE: None}}}
+        )
         result = _get_active_algorithms(bt)
         assert result == set()
 
     def test_missing_advanced_key_skipped(self):
-        bt = _make_bt_climate(real_trvs={
-            "trv_1": {},
-        })
+        """Missing advanced key skipped."""
+        bt = _make_bt_climate(real_trvs={"trv_1": {}})
         result = _get_active_algorithms(bt)
         assert result == set()
 
-    def test_real_trvs_none_returns_empty(self):
+    def test_real_trvs_none_returns_empty_and_returns_set(self):
+        """Real trvs none returns empty and returns set."""
         """real_trvs=None should be handled as empty."""
         bt = _make_bt_climate(real_trvs=None)
         result = _get_active_algorithms(bt)
@@ -560,17 +642,23 @@ class TestGetActiveAlgorithms:
 # 7. _setup_algorithm_sensors
 # ===========================================================================
 
+
 class TestSetupAlgorithmSensors:
     """Tests for _setup_algorithm_sensors."""
 
     @pytest.mark.asyncio
     async def test_mpc_creates_four_sensors(self):
+        """Mpc creates four sensors."""
         hass = MagicMock()
         hass.data = {DOMAIN: {"entry_1": {"climate": None}}}
         entry = _make_entry()
-        bt = _make_bt_climate(real_trvs={
-            "trv_1": {"advanced": {CONF_CALIBRATION_MODE: CalibrationMode.MPC_CALIBRATION}},
-        })
+        bt = _make_bt_climate(
+            real_trvs={
+                "trv_1": {
+                    "advanced": {CONF_CALIBRATION_MODE: CalibrationMode.MPC_CALIBRATION}
+                }
+            }
+        )
         with patch(
             "custom_components.better_thermostat.sensor.async_get_entity_registry",
             return_value=_make_entity_registry(),
@@ -581,6 +669,7 @@ class TestSetupAlgorithmSensors:
 
     @pytest.mark.asyncio
     async def test_no_algorithms_returns_empty(self):
+        """No algorithms returns empty."""
         hass = MagicMock()
         entry = _make_entry()
         bt = _make_bt_climate(real_trvs={})
@@ -596,9 +685,13 @@ class TestSetupAlgorithmSensors:
         """When algorithms_to_create is provided, only those algorithms create sensors."""
         hass = MagicMock()
         entry = _make_entry()
-        bt = _make_bt_climate(real_trvs={
-            "trv_1": {"advanced": {CONF_CALIBRATION_MODE: CalibrationMode.MPC_CALIBRATION}},
-        })
+        bt = _make_bt_climate(
+            real_trvs={
+                "trv_1": {
+                    "advanced": {CONF_CALIBRATION_MODE: CalibrationMode.MPC_CALIBRATION}
+                }
+            }
+        )
         with patch(
             "custom_components.better_thermostat.sensor.async_get_entity_registry",
             return_value=_make_entity_registry(),
@@ -611,11 +704,16 @@ class TestSetupAlgorithmSensors:
 
     @pytest.mark.asyncio
     async def test_mpc_tracking_registered(self):
+        """Mpc tracking registered."""
         hass = MagicMock()
         entry = _make_entry()
-        bt = _make_bt_climate(real_trvs={
-            "trv_1": {"advanced": {CONF_CALIBRATION_MODE: CalibrationMode.MPC_CALIBRATION}},
-        })
+        bt = _make_bt_climate(
+            real_trvs={
+                "trv_1": {
+                    "advanced": {CONF_CALIBRATION_MODE: CalibrationMode.MPC_CALIBRATION}
+                }
+            }
+        )
         with patch(
             "custom_components.better_thermostat.sensor.async_get_entity_registry",
             return_value=_make_entity_registry(),
@@ -623,13 +721,16 @@ class TestSetupAlgorithmSensors:
             await _setup_algorithm_sensors(hass, entry, bt)
         assert "entry_1" in _ACTIVE_ALGORITHM_ENTITIES
         assert CalibrationMode.MPC_CALIBRATION in _ACTIVE_ALGORITHM_ENTITIES["entry_1"]
-        tracked_ids = _ACTIVE_ALGORITHM_ENTITIES["entry_1"][CalibrationMode.MPC_CALIBRATION]
+        tracked_ids = _ACTIVE_ALGORITHM_ENTITIES["entry_1"][
+            CalibrationMode.MPC_CALIBRATION
+        ]
         assert len(tracked_ids) == 5  # 4 sensors + mpc_status
 
 
 # ===========================================================================
 # 8. async_setup_entry
 # ===========================================================================
+
 
 class TestAsyncSetupEntry:
     """Tests for async_setup_entry."""
@@ -654,11 +755,14 @@ class TestAsyncSetupEntry:
         entry = _make_entry()
         async_add_entities = MagicMock()
 
-        with patch(
-            "custom_components.better_thermostat.sensor._setup_algorithm_sensors",
-            return_value=[],
-        ), patch(
-            "custom_components.better_thermostat.sensor._register_dynamic_entity_callback",
+        with (
+            patch(
+                "custom_components.better_thermostat.sensor._setup_algorithm_sensors",
+                return_value=[],
+            ),
+            patch(
+                "custom_components.better_thermostat.sensor._register_dynamic_entity_callback"
+            ),
         ):
             await async_setup_entry(hass, entry, async_add_entities)
 
@@ -671,11 +775,13 @@ class TestAsyncSetupEntry:
 # 9. async_unload_entry
 # ===========================================================================
 
+
 class TestAsyncUnloadEntry:
     """Tests for async_unload_entry."""
 
     @pytest.mark.asyncio
     async def test_unsubscribes_dispatcher(self):
+        """Unsubscribes dispatcher."""
         entry = _make_entry()
         unsub = MagicMock()
         _DISPATCHER_UNSUBSCRIBES["entry_1"] = unsub
@@ -688,6 +794,7 @@ class TestAsyncUnloadEntry:
 
     @pytest.mark.asyncio
     async def test_cleans_all_tracking_dicts(self):
+        """Cleans all tracking dicts."""
         entry = _make_entry()
         _ACTIVE_ALGORITHM_ENTITIES["entry_1"] = {"algo": ["id1"]}
         _ENTITY_CLEANUP_CALLBACKS["entry_1"] = MagicMock()
@@ -717,6 +824,7 @@ class TestAsyncUnloadEntry:
 # 10. _cleanup_stale_algorithm_entities
 # ===========================================================================
 
+
 class TestCleanupStaleAlgorithmEntities:
     """Tests for _cleanup_stale_algorithm_entities."""
 
@@ -735,7 +843,7 @@ class TestCleanupStaleAlgorithmEntities:
         reg.async_get_entity_id.return_value = "sensor.mpc_virtual_temp"
 
         _ACTIVE_ALGORITHM_ENTITIES["entry_1"] = {
-            CalibrationMode.MPC_CALIBRATION: ["uid_1", "uid_2"],
+            CalibrationMode.MPC_CALIBRATION: ["uid_1", "uid_2"]
         }
 
         with patch(
@@ -744,7 +852,12 @@ class TestCleanupStaleAlgorithmEntities:
         ):
             bt = _make_bt_climate()
             # current_algorithms is empty → MPC should be cleaned up
-            await _cleanup_stale_algorithm_entities(hass=MagicMock(), entry_id="entry_1", bt_climate=bt, current_algorithms=set())
+            await _cleanup_stale_algorithm_entities(
+                hass=MagicMock(),
+                entry_id="entry_1",
+                bt_climate=bt,
+                current_algorithms=set(),
+            )
 
         assert reg.async_remove.call_count == 2
         # Tracking should be cleaned up
@@ -755,7 +868,7 @@ class TestCleanupStaleAlgorithmEntities:
         """Entities for still-active algorithms should NOT be removed."""
         reg = _make_entity_registry()
         _ACTIVE_ALGORITHM_ENTITIES["entry_1"] = {
-            CalibrationMode.MPC_CALIBRATION: ["uid_1"],
+            CalibrationMode.MPC_CALIBRATION: ["uid_1"]
         }
 
         with patch(
@@ -782,7 +895,7 @@ class TestCleanupStaleAlgorithmEntities:
         reg.async_get_entity_id.side_effect = ["sensor.found", None]
 
         _ACTIVE_ALGORITHM_ENTITIES["entry_1"] = {
-            CalibrationMode.MPC_CALIBRATION: ["uid_1", "uid_2"],
+            CalibrationMode.MPC_CALIBRATION: ["uid_1", "uid_2"]
         }
 
         with patch(
@@ -791,13 +904,18 @@ class TestCleanupStaleAlgorithmEntities:
         ):
             bt = _make_bt_climate()
             await _cleanup_stale_algorithm_entities(
-                hass=MagicMock(), entry_id="entry_1", bt_climate=bt, current_algorithms=set()
+                hass=MagicMock(),
+                entry_id="entry_1",
+                bt_climate=bt,
+                current_algorithms=set(),
             )
 
         # Only 1 entity removed (other not found in registry)
         assert reg.async_remove.call_count == 1
         # Since only 1 of 2 removed, algorithm tracking should remain
-        assert CalibrationMode.MPC_CALIBRATION in _ACTIVE_ALGORITHM_ENTITIES.get("entry_1", {})
+        assert CalibrationMode.MPC_CALIBRATION in _ACTIVE_ALGORITHM_ENTITIES.get(
+            "entry_1", {}
+        )
 
     @pytest.mark.asyncio
     async def test_remove_exception_handled_gracefully(self):
@@ -807,7 +925,7 @@ class TestCleanupStaleAlgorithmEntities:
         reg.async_remove.side_effect = RuntimeError("registry error")
 
         _ACTIVE_ALGORITHM_ENTITIES["entry_1"] = {
-            CalibrationMode.MPC_CALIBRATION: ["uid_1"],
+            CalibrationMode.MPC_CALIBRATION: ["uid_1"]
         }
 
         with patch(
@@ -817,7 +935,10 @@ class TestCleanupStaleAlgorithmEntities:
             bt = _make_bt_climate()
             # Should not raise
             await _cleanup_stale_algorithm_entities(
-                hass=MagicMock(), entry_id="entry_1", bt_climate=bt, current_algorithms=set()
+                hass=MagicMock(),
+                entry_id="entry_1",
+                bt_climate=bt,
+                current_algorithms=set(),
             )
 
 
@@ -825,11 +946,13 @@ class TestCleanupStaleAlgorithmEntities:
 # 11. _cleanup_preset_number_entities
 # ===========================================================================
 
+
 class TestCleanupPresetNumberEntities:
     """Tests for _cleanup_preset_number_entities."""
 
     @pytest.mark.asyncio
     async def test_removes_disabled_preset_entities(self):
+        """Removes disabled preset entities."""
         reg = _make_entity_registry()
         reg.async_get_entity_id.return_value = "number.preset_away"
 
@@ -840,8 +963,11 @@ class TestCleanupPresetNumberEntities:
         bt = _make_bt_climate()
         # Only "home" is current → "away" should be removed
         await _cleanup_preset_number_entities(
-            hass=MagicMock(), entity_registry=reg, entry_id="entry_1",
-            bt_climate=bt, current_presets={"home"},
+            hass=MagicMock(),
+            entity_registry=reg,
+            entry_id="entry_1",
+            bt_climate=bt,
+            current_presets={"home"},
         )
 
         reg.async_remove.assert_called_once_with("number.preset_away")
@@ -850,23 +976,28 @@ class TestCleanupPresetNumberEntities:
     async def test_none_unique_id_skipped(self):
         """Entries with None as unique_id should be skipped."""
         reg = _make_entity_registry()
-        _ACTIVE_PRESET_NUMBERS["entry_1"] = {
-            None: {"preset": "away"},
-        }
+        _ACTIVE_PRESET_NUMBERS["entry_1"] = {None: {"preset": "away"}}
         bt = _make_bt_climate()
         await _cleanup_preset_number_entities(
-            hass=MagicMock(), entity_registry=reg, entry_id="entry_1",
-            bt_climate=bt, current_presets=set(),
+            hass=MagicMock(),
+            entity_registry=reg,
+            entry_id="entry_1",
+            bt_climate=bt,
+            current_presets=set(),
         )
         reg.async_get_entity_id.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_merges_new_presets_into_tracking(self):
+        """Merges new presets into tracking."""
         reg = _make_entity_registry()
         bt = _make_bt_climate()
         await _cleanup_preset_number_entities(
-            hass=MagicMock(), entity_registry=reg, entry_id="entry_1",
-            bt_climate=bt, current_presets={"comfort", "eco"},
+            hass=MagicMock(),
+            entity_registry=reg,
+            entry_id="entry_1",
+            bt_climate=bt,
+            current_presets={"comfort", "eco"},
         )
         tracked = _ACTIVE_PRESET_NUMBERS["entry_1"]
         assert f"{bt.unique_id}_preset_comfort" in tracked
@@ -879,13 +1010,14 @@ class TestCleanupPresetNumberEntities:
         reg.async_get_entity_id.return_value = "number.preset_away"
         reg.async_remove.side_effect = RuntimeError("fail")
 
-        _ACTIVE_PRESET_NUMBERS["entry_1"] = {
-            "uid_away": {"preset": "away"},
-        }
+        _ACTIVE_PRESET_NUMBERS["entry_1"] = {"uid_away": {"preset": "away"}}
         bt = _make_bt_climate()
         await _cleanup_preset_number_entities(
-            hass=MagicMock(), entity_registry=reg, entry_id="entry_1",
-            bt_climate=bt, current_presets=set(),
+            hass=MagicMock(),
+            entity_registry=reg,
+            entry_id="entry_1",
+            bt_climate=bt,
+            current_presets=set(),
         )
         # Tracking should remain since removal failed
         assert "uid_away" in _ACTIVE_PRESET_NUMBERS["entry_1"]
@@ -895,47 +1027,57 @@ class TestCleanupPresetNumberEntities:
 # 12. _cleanup_pid_number_entities
 # ===========================================================================
 
+
 class TestCleanupPidNumberEntities:
     """Tests for _cleanup_pid_number_entities."""
 
     @pytest.mark.asyncio
     async def test_removes_pid_entities_for_non_pid_trv(self):
+        """Removes pid entities for non pid trv."""
         reg = _make_entity_registry()
         reg.async_get_entity_id.return_value = "number.pid_kp"
 
-        _ACTIVE_PID_NUMBERS["entry_1"] = {
-            "uid_kp": {"trv": "trv_1", "param": "kp"},
-        }
-        bt = _make_bt_climate(real_trvs={
-            "trv_1": {"advanced": {CONF_CALIBRATION_MODE: CalibrationMode.DEFAULT}},
-        })
+        _ACTIVE_PID_NUMBERS["entry_1"] = {"uid_kp": {"trv": "trv_1", "param": "kp"}}
+        bt = _make_bt_climate(
+            real_trvs={
+                "trv_1": {"advanced": {CONF_CALIBRATION_MODE: CalibrationMode.DEFAULT}}
+            }
+        )
         await _cleanup_pid_number_entities(
-            hass=MagicMock(), entity_registry=reg, entry_id="entry_1", bt_climate=bt,
+            hass=MagicMock(), entity_registry=reg, entry_id="entry_1", bt_climate=bt
         )
         reg.async_remove.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_keeps_pid_entities_for_pid_trv(self):
+        """Keeps pid entities for pid trv."""
         reg = _make_entity_registry()
-        _ACTIVE_PID_NUMBERS["entry_1"] = {
-            "uid_kp": {"trv": "trv_1", "param": "kp"},
-        }
-        bt = _make_bt_climate(real_trvs={
-            "trv_1": {"advanced": {CONF_CALIBRATION_MODE: CalibrationMode.PID_CALIBRATION}},
-        })
+        _ACTIVE_PID_NUMBERS["entry_1"] = {"uid_kp": {"trv": "trv_1", "param": "kp"}}
+        bt = _make_bt_climate(
+            real_trvs={
+                "trv_1": {
+                    "advanced": {CONF_CALIBRATION_MODE: CalibrationMode.PID_CALIBRATION}
+                }
+            }
+        )
         await _cleanup_pid_number_entities(
-            hass=MagicMock(), entity_registry=reg, entry_id="entry_1", bt_climate=bt,
+            hass=MagicMock(), entity_registry=reg, entry_id="entry_1", bt_climate=bt
         )
         reg.async_remove.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_merges_pid_tracking_for_current_trvs(self):
+        """Merges pid tracking for current trvs."""
         reg = _make_entity_registry()
-        bt = _make_bt_climate(real_trvs={
-            "trv_1": {"advanced": {CONF_CALIBRATION_MODE: CalibrationMode.PID_CALIBRATION}},
-        })
+        bt = _make_bt_climate(
+            real_trvs={
+                "trv_1": {
+                    "advanced": {CONF_CALIBRATION_MODE: CalibrationMode.PID_CALIBRATION}
+                }
+            }
+        )
         await _cleanup_pid_number_entities(
-            hass=MagicMock(), entity_registry=reg, entry_id="entry_1", bt_climate=bt,
+            hass=MagicMock(), entity_registry=reg, entry_id="entry_1", bt_climate=bt
         )
         tracked = _ACTIVE_PID_NUMBERS["entry_1"]
         # Should have 3 entries for trv_1 (kp, ki, kd)
@@ -946,24 +1088,23 @@ class TestCleanupPidNumberEntities:
     async def test_no_real_trvs_returns_empty_pid_trvs(self):
         """If no real_trvs, no PID TRVs should be found."""
         reg = _make_entity_registry()
-        _ACTIVE_PID_NUMBERS["entry_1"] = {
-            "uid_kp": {"trv": "trv_1", "param": "kp"},
-        }
+        _ACTIVE_PID_NUMBERS["entry_1"] = {"uid_kp": {"trv": "trv_1", "param": "kp"}}
         bt = _make_bt_climate(real_trvs={})
         reg.async_get_entity_id.return_value = "number.pid_kp"
         await _cleanup_pid_number_entities(
-            hass=MagicMock(), entity_registry=reg, entry_id="entry_1", bt_climate=bt,
+            hass=MagicMock(), entity_registry=reg, entry_id="entry_1", bt_climate=bt
         )
         reg.async_remove.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_invalid_calibration_mode_trv_skipped(self):
+        """Invalid calibration mode trv skipped."""
         reg = _make_entity_registry()
-        bt = _make_bt_climate(real_trvs={
-            "trv_1": {"advanced": {CONF_CALIBRATION_MODE: "totally_bogus"}},
-        })
+        bt = _make_bt_climate(
+            real_trvs={"trv_1": {"advanced": {CONF_CALIBRATION_MODE: "totally_bogus"}}}
+        )
         await _cleanup_pid_number_entities(
-            hass=MagicMock(), entity_registry=reg, entry_id="entry_1", bt_climate=bt,
+            hass=MagicMock(), entity_registry=reg, entry_id="entry_1", bt_climate=bt
         )
         # No PID TRVs found, nothing to merge
         tracked = _ACTIVE_PID_NUMBERS["entry_1"]
@@ -974,63 +1115,78 @@ class TestCleanupPidNumberEntities:
 # 13. _cleanup_pid_switch_entities
 # ===========================================================================
 
+
 class TestCleanupPidSwitchEntities:
     """Tests for _cleanup_pid_switch_entities."""
 
     @pytest.mark.asyncio
     async def test_removes_pid_autotune_for_non_pid_trv(self):
+        """Removes pid autotune for non pid trv."""
         reg = _make_entity_registry()
         reg.async_get_entity_id.return_value = "switch.pid_auto_tune"
 
         _ACTIVE_SWITCH_ENTITIES["entry_1"] = {
-            "uid_autotune": {"trv": "trv_1", "type": "pid_auto_tune"},
+            "uid_autotune": {"trv": "trv_1", "type": "pid_auto_tune"}
         }
-        bt = _make_bt_climate(real_trvs={
-            "trv_1": {"advanced": {CONF_CALIBRATION_MODE: CalibrationMode.DEFAULT}},
-        })
+        bt = _make_bt_climate(
+            real_trvs={
+                "trv_1": {"advanced": {CONF_CALIBRATION_MODE: CalibrationMode.DEFAULT}}
+            }
+        )
         await _cleanup_pid_switch_entities(
-            hass=MagicMock(), entity_registry=reg, entry_id="entry_1", bt_climate=bt,
+            hass=MagicMock(), entity_registry=reg, entry_id="entry_1", bt_climate=bt
         )
         reg.async_remove.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_removes_child_lock_for_removed_trv(self):
+        """Removes child lock for removed trv."""
         reg = _make_entity_registry()
         reg.async_get_entity_id.return_value = "switch.child_lock"
 
         _ACTIVE_SWITCH_ENTITIES["entry_1"] = {
-            "uid_lock": {"trv": "trv_removed", "type": "child_lock"},
+            "uid_lock": {"trv": "trv_removed", "type": "child_lock"}
         }
-        bt = _make_bt_climate(real_trvs={
-            "trv_1": {"advanced": {CONF_CALIBRATION_MODE: CalibrationMode.DEFAULT}},
-        })
+        bt = _make_bt_climate(
+            real_trvs={
+                "trv_1": {"advanced": {CONF_CALIBRATION_MODE: CalibrationMode.DEFAULT}}
+            }
+        )
         await _cleanup_pid_switch_entities(
-            hass=MagicMock(), entity_registry=reg, entry_id="entry_1", bt_climate=bt,
+            hass=MagicMock(), entity_registry=reg, entry_id="entry_1", bt_climate=bt
         )
         reg.async_remove.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_keeps_child_lock_for_existing_trv(self):
+        """Keeps child lock for existing trv."""
         reg = _make_entity_registry()
         _ACTIVE_SWITCH_ENTITIES["entry_1"] = {
-            "uid_lock": {"trv": "trv_1", "type": "child_lock"},
+            "uid_lock": {"trv": "trv_1", "type": "child_lock"}
         }
-        bt = _make_bt_climate(real_trvs={
-            "trv_1": {"advanced": {CONF_CALIBRATION_MODE: CalibrationMode.DEFAULT}},
-        })
+        bt = _make_bt_climate(
+            real_trvs={
+                "trv_1": {"advanced": {CONF_CALIBRATION_MODE: CalibrationMode.DEFAULT}}
+            }
+        )
         await _cleanup_pid_switch_entities(
-            hass=MagicMock(), entity_registry=reg, entry_id="entry_1", bt_climate=bt,
+            hass=MagicMock(), entity_registry=reg, entry_id="entry_1", bt_climate=bt
         )
         reg.async_remove.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_merges_switch_tracking(self):
+        """Merges switch tracking."""
         reg = _make_entity_registry()
-        bt = _make_bt_climate(real_trvs={
-            "trv_1": {"advanced": {CONF_CALIBRATION_MODE: CalibrationMode.PID_CALIBRATION}},
-        })
+        bt = _make_bt_climate(
+            real_trvs={
+                "trv_1": {
+                    "advanced": {CONF_CALIBRATION_MODE: CalibrationMode.PID_CALIBRATION}
+                }
+            }
+        )
         await _cleanup_pid_switch_entities(
-            hass=MagicMock(), entity_registry=reg, entry_id="entry_1", bt_climate=bt,
+            hass=MagicMock(), entity_registry=reg, entry_id="entry_1", bt_climate=bt
         )
         tracked = _ACTIVE_SWITCH_ENTITIES["entry_1"]
         # Should have pid_auto_tune + child_lock for trv_1
@@ -1044,11 +1200,11 @@ class TestCleanupPidSwitchEntities:
         reg.async_get_entity_id.return_value = "switch.child_lock"
 
         _ACTIVE_SWITCH_ENTITIES["entry_1"] = {
-            "uid_lock": {"trv": "trv_1", "type": "child_lock"},
+            "uid_lock": {"trv": "trv_1", "type": "child_lock"}
         }
         bt = _make_bt_climate(real_trvs=None)
         await _cleanup_pid_switch_entities(
-            hass=MagicMock(), entity_registry=reg, entry_id="entry_1", bt_climate=bt,
+            hass=MagicMock(), entity_registry=reg, entry_id="entry_1", bt_climate=bt
         )
         reg.async_remove.assert_called_once()
 
@@ -1056,6 +1212,7 @@ class TestCleanupPidSwitchEntities:
 # ===========================================================================
 # 14. Edge cases & potential bugs
 # ===========================================================================
+
 
 class TestEdgeCasesAndPotentialBugs:
     """Tests probing edge cases that might reveal bugs."""
@@ -1081,7 +1238,7 @@ class TestEdgeCasesAndPotentialBugs:
             pass  # documents the bug
 
     def test_solar_sensor_negative_intensity(self):
-        """What happens if solar intensity returns a negative value?"""
+        """What happens if solar intensity returns a negative value?."""
         with patch(
             "custom_components.better_thermostat.sensor._get_current_solar_intensity"
         ) as mock_solar:
@@ -1094,7 +1251,7 @@ class TestEdgeCasesAndPotentialBugs:
             assert sensor._attr_native_value == -50.0
 
     def test_solar_sensor_above_one_intensity(self):
-        """What happens if solar intensity returns > 1.0?"""
+        """What happens if solar intensity returns > 1.0?."""
         with patch(
             "custom_components.better_thermostat.sensor._get_current_solar_intensity"
         ) as mock_solar:
@@ -1119,10 +1276,10 @@ class TestEdgeCasesAndPotentialBugs:
         """After all algorithms removed, the entry_id key should be deleted."""
         _ACTIVE_ALGORITHM_ENTITIES["entry_1"] = {}
         # empty dict → should be cleaned up
-        reg = _make_entity_registry()
         hass = MagicMock()
         bt = _make_bt_climate()
         import asyncio
+
         asyncio.get_event_loop().run_until_complete(
             _cleanup_stale_algorithm_entities(hass, "entry_1", bt, set())
         )
@@ -1136,8 +1293,11 @@ class TestEdgeCasesAndPotentialBugs:
         reg = _make_entity_registry()
         bt = _make_bt_climate()
         await _cleanup_preset_number_entities(
-            hass=MagicMock(), entity_registry=reg, entry_id="entry_1",
-            bt_climate=bt, current_presets={"comfort"},
+            hass=MagicMock(),
+            entity_registry=reg,
+            entry_id="entry_1",
+            bt_climate=bt,
+            current_presets={"comfort"},
         )
         # Should just merge without error
         assert "entry_1" in _ACTIVE_PRESET_NUMBERS
@@ -1145,9 +1305,7 @@ class TestEdgeCasesAndPotentialBugs:
     @pytest.mark.asyncio
     async def test_get_active_algorithms_with_empty_advanced(self):
         """TRV with empty advanced dict should return no algorithms."""
-        bt = _make_bt_climate(real_trvs={
-            "trv_1": {"advanced": {}},
-        })
+        bt = _make_bt_climate(real_trvs={"trv_1": {"advanced": {}}})
         result = _get_active_algorithms(bt)
         assert result == set()
 
@@ -1205,20 +1363,24 @@ class TestEdgeCasesAndPotentialBugs:
 # 15. Base class tests
 # ===========================================================================
 
+
 class TestBtSensorBase:
     """Tests for _BtSensorBase.__init__ and shared behavior."""
 
     def test_init_sets_unique_id_from_suffix(self):
+        """Init sets unique id from suffix."""
         bt = _make_bt_climate()
         sensor = BetterThermostatTempSlopeSensor(bt)
         assert sensor._attr_unique_id == "test_bt_123_temp_slope"
 
     def test_init_stores_bt_climate(self):
+        """Init stores bt climate."""
         bt = _make_bt_climate()
         sensor = BetterThermostatHeatingPowerSensor(bt)
         assert sensor._bt_climate is bt
 
     def test_init_sets_device_info(self):
+        """Init sets device info."""
         bt = _make_bt_climate()
         sensor = BetterThermostatHeatLossSensor(bt)
         assert sensor._attr_device_info == bt.device_info
@@ -1239,7 +1401,9 @@ class TestBtSensorBase:
             BetterThermostatSolarIntensitySensor,
         ]:
             sensor = cls(bt)
-            assert isinstance(sensor, _BtSensorBase), f"{cls.__name__} should inherit from _BtSensorBase"
+            assert isinstance(sensor, _BtSensorBase), (
+                f"{cls.__name__} should inherit from _BtSensorBase"
+            )
 
     def test_mpc_sensors_inherit_from_mpc_base(self):
         """All MPC sensors should inherit from _BtMpcSensorBase."""
@@ -1251,7 +1415,9 @@ class TestBtSensorBase:
             BetterThermostatMpcKaSensor,
         ]:
             sensor = cls(bt)
-            assert isinstance(sensor, _BtMpcSensorBase), f"{cls.__name__} should inherit from _BtMpcSensorBase"
+            assert isinstance(sensor, _BtMpcSensorBase), (
+                f"{cls.__name__} should inherit from _BtMpcSensorBase"
+            )
 
     def test_simple_sensors_inherit_from_simple_base(self):
         """Simple attribute sensors should inherit from _BtSimpleAttributeSensor."""
@@ -1262,25 +1428,31 @@ class TestBtSensorBase:
             BetterThermostatHeatLossSensor,
         ]:
             sensor = cls(bt)
-            assert isinstance(sensor, _BtSimpleAttributeSensor), f"{cls.__name__} should inherit from _BtSimpleAttributeSensor"
+            assert isinstance(sensor, _BtSimpleAttributeSensor), (
+                f"{cls.__name__} should inherit from _BtSimpleAttributeSensor"
+            )
 
 
 class TestGetFilteredTemp:
     """Tests for _get_filtered_temp helper."""
 
     def test_prefers_cur_temp_filtered(self):
+        """Prefers cur temp filtered."""
         bt = _make_bt_climate(cur_temp_filtered=21.5, external_temp_ema=22.0)
         assert _get_filtered_temp(bt) == 21.5
 
     def test_falls_back_to_external_temp_ema(self):
+        """Falls back to external temp ema."""
         bt = _make_bt_climate(cur_temp_filtered=None, external_temp_ema=22.0)
         assert _get_filtered_temp(bt) == 22.0
 
     def test_returns_none_when_both_missing(self):
+        """Returns none when both missing."""
         bt = _make_bt_climate(cur_temp_filtered=None, external_temp_ema=None)
         assert _get_filtered_temp(bt) is None
 
     def test_zero_value_not_treated_as_none(self):
+        """Zero value not treated as none."""
         bt = _make_bt_climate(cur_temp_filtered=0.0, external_temp_ema=22.0)
         assert _get_filtered_temp(bt) == 0.0
 
@@ -1289,24 +1461,28 @@ class TestBtSimpleAttributeSensor:
     """Tests for _BtSimpleAttributeSensor base behavior."""
 
     def test_rounding_applied_when_set(self):
+        """Rounding applied when set."""
         bt = _make_bt_climate(temp_slope=0.01236789)
         sensor = BetterThermostatTempSlopeSensor(bt)
         sensor._update_state()
         assert sensor._attr_native_value == 0.0124
 
     def test_no_rounding_when_none(self):
+        """No rounding when none."""
         bt = _make_bt_climate(heating_power=0.05123456)
         sensor = BetterThermostatHeatingPowerSensor(bt)
         sensor._update_state()
         assert sensor._attr_native_value == 0.05123456
 
     def test_none_attribute_gives_none(self):
+        """None attribute gives none."""
         bt = _make_bt_climate(heating_power=None)
         sensor = BetterThermostatHeatingPowerSensor(bt)
         sensor._update_state()
         assert sensor._attr_native_value is None
 
     def test_invalid_string_gives_none(self):
+        """Invalid string gives none."""
         bt = _make_bt_climate(temp_slope="not_a_number")
         sensor = BetterThermostatTempSlopeSensor(bt)
         sensor._update_state()

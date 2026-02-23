@@ -187,7 +187,9 @@ class TestCoolerSetpointAdoption:
     @pytest.mark.asyncio
     async def test_writes_state_even_without_main_change(self, mock_bt):
         """async_write_ha_state() is always called, even without setpoint change."""
-        mock_bt.bt_hvac_mode = HVACMode.OFF  # OFF → no setpoint adoption → no main change
+        mock_bt.bt_hvac_mode = (
+            HVACMode.OFF
+        )  # OFF → no setpoint adoption → no main change
         old_state = _make_state(attributes={"temperature": 25.0})
         new_state = _make_state(attributes={"temperature": 27.0})
         event = _make_event(mock_bt, new_state=new_state, old_state=old_state)
@@ -402,13 +404,15 @@ class TestEdgeCases:
         mock_bt.control_queue_task.put.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_main_key_mismatch_old_has_temp_new_has_target_temp_high(self, mock_bt):
-        """Key selection uses old_state only — if old has 'temperature' but new
-        only has 'target_temp_high', the new setpoint reads from wrong key.
+    async def test_main_key_mismatch_old_has_temp_new_has_target_temp_high(
+        self, mock_bt
+    ):
+        """Key selection uses old_state only to pick the temperature attribute key.
 
-        The _main_key is determined from old_state.attributes. If the cooler
-        switches attribute schema between events, new_state is read with the
-        wrong key → None → no adoption.
+        If old has 'temperature' but new only has 'target_temp_high', the new
+        setpoint reads from the wrong key. The _main_key is determined from
+        old_state.attributes — if the cooler switches attribute schema between
+        events, new_state is read with the wrong key → None → no adoption.
         """
         old_state = _make_state(attributes={"temperature": 25.0})
         # new_state has target_temp_high but NOT temperature
