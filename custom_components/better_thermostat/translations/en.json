@@ -123,21 +123,9 @@
     }
   },
   "services": {
-    "save_current_target_temperature": {
-      "name": "Save current Temperature",
-      "description": "Save the current target temperature for later restore."
-    },
-    "restore_saved_target_temperature": {
-      "name": "Restore temperature",
-      "description": "Restore the saved target temperature."
-    },
     "reset_heating_power": {
       "name": "Reset heating power",
       "description": "Reset heating power to default value."
-    },
-    "set_temp_target_temperature": {
-      "name": "Set eco temperature",
-      "description": "Set the target temperature to a temporary like night mode, and save the old one."
     }
   },
   "selector": {
@@ -181,6 +169,21 @@
       "pid_auto_tune_no_trv": {
         "name": "PID Auto Tune"
       }
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "heating_active": "Thermostat switches to heating",
+      "heating_stopped": "Thermostat stops heating",
+      "humidity_high": "Humidity exceeds threshold",
+      "window_opened": "Window opened",
+      "window_closed": "Window closed",
+      "battery_low": "Battery low",
+      "device_error": "Device error detected",
+      "target_temp_reached": "Target temperature reached",
+      "hvac_mode_changed": "HVAC mode changed",
+      "current_temperature_changed": "Current temperature changed",
+      "current_humidity_changed": "Current humidity changed"
     }
   }
 }

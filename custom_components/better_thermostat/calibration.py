@@ -611,6 +611,11 @@ def calculate_calibration_local(self, entity_id) -> float | None:
                     _desired_trv_setpoint = _cur_trv_temp_f + (
                         (float(_max_temp) - _cur_trv_temp_f) * _valve_fraction
                     )
+                    if (
+                        _valve_fraction == 0.0
+                        and _desired_trv_setpoint >= _cur_trv_temp_f
+                    ):
+                        _desired_trv_setpoint = _cur_trv_temp_f - 1.0
                     _new_trv_calibration = _current_trv_calibration - (
                         _desired_trv_setpoint - _cur_target_temp
                     )
@@ -619,7 +624,7 @@ def calculate_calibration_local(self, entity_id) -> float | None:
         if _tpi_use_valve:
             _new_trv_calibration = _current_trv_calibration
         elif _tpi_result is not None:
-            _tpi_percent = getattr(_tpi_result, "valve_percent", None)
+            _tpi_percent = getattr(_tpi_result, "duty_cycle_pct", None)
             if isinstance(_tpi_percent, (int, float)):
                 _max_temp = _convert_to_float(self.real_trvs[entity_id]["max_temp"])
                 if _max_temp is not None:
@@ -627,6 +632,11 @@ def calculate_calibration_local(self, entity_id) -> float | None:
                     _desired_trv_setpoint = _cur_trv_temp_f + (
                         (float(_max_temp) - _cur_trv_temp_f) * _valve_fraction
                     )
+                    if (
+                        _valve_fraction == 0.0
+                        and _desired_trv_setpoint >= _cur_trv_temp_f
+                    ):
+                        _desired_trv_setpoint = _cur_trv_temp_f - 1.0
                     _new_trv_calibration = _current_trv_calibration - (
                         _desired_trv_setpoint - _cur_target_temp
                     )
@@ -643,6 +653,11 @@ def calculate_calibration_local(self, entity_id) -> float | None:
                     _desired_trv_setpoint = _cur_trv_temp_f + (
                         (float(_max_temp) - _cur_trv_temp_f) * _valve_fraction
                     )
+                    if (
+                        _valve_fraction == 0.0
+                        and _desired_trv_setpoint >= _cur_trv_temp_f
+                    ):
+                        _desired_trv_setpoint = _cur_trv_temp_f - 1.0
                     _new_trv_calibration = _current_trv_calibration - (
                         _desired_trv_setpoint - _cur_target_temp
                     )

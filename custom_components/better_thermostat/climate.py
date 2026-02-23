@@ -94,7 +94,6 @@ from .utils.const import (
     ATTR_STATE_SAVED_TEMPERATURE,
     ATTR_STATE_WINDOW_OPEN,
     BETTERTHERMOSTAT_RESET_PID_SCHEMA,
-    BETTERTHERMOSTAT_SET_TEMPERATURE_SCHEMA,
     CONF_COOLER,
     CONF_HEATER,
     CONF_HUMIDITY,
@@ -116,8 +115,6 @@ from .utils.const import (
     MIN_HEATING_POWER,
     SERVICE_RESET_HEATING_POWER,
     SERVICE_RESET_PID_LEARNINGS,
-    SERVICE_RESTORE_SAVED_TARGET_TEMPERATURE,
-    SERVICE_SET_TEMP_TARGET_TEMPERATURE,
     SUPPORT_FLAGS,
     VERSION,
     CalibrationMode,
@@ -195,14 +192,6 @@ async def async_setup_entry(hass, entry, async_add_entities):
     platform = entity_platform.async_get_current_platform()
     # Register entity services (validator done manually inside method)
     platform.async_register_entity_service(
-        SERVICE_SET_TEMP_TARGET_TEMPERATURE,
-        BETTERTHERMOSTAT_SET_TEMPERATURE_SCHEMA,
-        "set_temp_temperature",
-    )
-    platform.async_register_entity_service(
-        SERVICE_RESTORE_SAVED_TARGET_TEMPERATURE, {}, "restore_temp_temperature"
-    )
-    platform.async_register_entity_service(
         SERVICE_RESET_HEATING_POWER, {}, "reset_heating_power"
     )
     platform.async_register_entity_service(
@@ -249,51 +238,6 @@ class BetterThermostat(ClimateEntity, RestoreEntity, ABC):
     _attr_has_entity_name = True
     _attr_name = None
     _enable_turn_on_off_backwards_compatibility = False
-
-    async def set_temp_temperature(self, temperature):
-        """Set temporary target temperature."""
-        self.bt_update_lock = True
-        try:
-            if self._saved_temperature is None:
-                self._saved_temperature = self.bt_target_temp
-                self.bt_target_temp = convert_to_float(
-                    temperature, self.device_name, "service.set_temp_temperature()"
-                )
-                self.async_write_ha_state()
-                if getattr(self, "in_maintenance", False):
-                    self._control_needed_after_maintenance = True
-                    return
-                await self.control_queue_task.put(self)
-            else:
-                self.bt_target_temp = convert_to_float(
-                    temperature, self.device_name, "service.set_temp_temperature()"
-                )
-                self.async_write_ha_state()
-                if getattr(self, "in_maintenance", False):
-                    self._control_needed_after_maintenance = True
-                    return
-                await self.control_queue_task.put(self)
-        finally:
-            self.bt_update_lock = False
-
-    async def restore_temp_temperature(self):
-        """Restore the previously saved target temperature."""
-        self.bt_update_lock = True
-        try:
-            if self._saved_temperature is not None:
-                self.bt_target_temp = convert_to_float(
-                    self._saved_temperature,
-                    self.device_name,
-                    "service.restore_temp_temperature()",
-                )
-                self._saved_temperature = None
-                self.async_write_ha_state()
-                if getattr(self, "in_maintenance", False):
-                    self._control_needed_after_maintenance = True
-                    return
-                await self.control_queue_task.put(self)
-        finally:
-            self.bt_update_lock = False
 
     # ECO mode removed; set_eco_mode service and logic deleted.
 

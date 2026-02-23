@@ -38,7 +38,7 @@
         },
         "data_description": {
           "protect_overheating": "Niektoré termostatické ventily úplne neuzatvoria ventil po dosiahnutí požadovanej teploty. Alebo má radiátor veľa zvyškového tepla. To môže spôsobiť prehriatie. Táto možnosť tomu môže zabrániť.",
-"calibration_mode": "Druh, akým sa má kalibrácia vypočítať\n***Normálny***: V tomto režime je vnútorný snímač teploty TRV fixovaný externým snímačom teploty.\n***Agresívny***: V tomto režime je vnútorný snímač teploty TRV fixovaný externým snímačom teploty, ale nastavený oveľa nižšie/vyššie, aby sa dosiahlo rýchlejšie zvýšenie teploty.\n***Časovo založený na AI***: V tomto režime je vnútorný snímač teploty TRV fixovaný externým snímačom teploty, ale vlastný algoritmus vypočíta hodnotu na zlepšenie vnútorného algoritmu TRV.\n***Prediktívny MPC***: Používa prediktívny regulátor MPC na odvodenie otvorenia ventilu a prevedie ho na posuny alebo požadované hodnoty, keď priame riadenie ventilu nie je k dispozícii.\n***PID regulátor***: Používa PID regulátor na dynamické nastavenie polohy ventilu na základe teplotnej chyby, proporcionálneho člena, integrálnej akumulácie a derivačnej predikcie.\n***TPI regulátor***: Používa časovo proporcionálny integračný regulátor pre stabilnú a presnú reguláciu teploty v priebehu času.",
+          "calibration_mode": "Druh, akým sa má kalibrácia vypočítať\n***Normálny***: V tomto režime je vnútorný snímač teploty TRV fixovaný externým snímačom teploty.\n***Agresívny***: V tomto režime je vnútorný snímač teploty TRV fixovaný externým snímačom teploty, ale nastavený oveľa nižšie/vyššie, aby sa dosiahlo rýchlejšie zvýšenie teploty.\n***Časovo založený na AI***: V tomto režime je vnútorný snímač teploty TRV fixovaný externým snímačom teploty, ale vlastný algoritmus vypočíta hodnotu na zlepšenie vnútorného algoritmu TRV.\n***Prediktívny MPC***: Používa prediktívny regulátor MPC na odvodenie otvorenia ventilu a prevedie ho na posuny alebo požadované hodnoty, keď priame riadenie ventilu nie je k dispozícii.\n***PID regulátor***: Používa PID regulátor na dynamické nastavenie polohy ventilu na základe teplotnej chyby, proporcionálneho člena, integrálnej akumulácie a derivačnej predikcie.\n***TPI regulátor***: Používa časovo proporcionálny integračný regulátor pre stabilnú a presnú reguláciu teploty v priebehu času.",
           "calibration": "Ako sa má kalibrácia použiť na TRV (cieľová teplota alebo posun)\n***Na základe cieľovej teploty***: Použite kalibráciu na cieľovú teplotu.\n***Na základe ofsetu***: Použite kalibráciu na offset."
         }
       },
@@ -181,6 +181,21 @@
       "pid_auto_tune_no_trv": {
         "name": "PID Auto Tune"
       }
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "heating_active": "Termostat prechádza do režimu kúrenia",
+      "heating_stopped": "Termostat zastavuje kúrenie",
+      "humidity_high": "Vlhkosť prekračuje prah",
+      "window_opened": "Okno otvorené",
+      "window_closed": "Okno zatvorené",
+      "battery_low": "Nízka batéria",
+      "device_error": "Zistená chyba zariadenia",
+      "target_temp_reached": "Cieľová teplota dosiahnutá",
+      "hvac_mode_changed": "Režim HVAC zmenený",
+      "current_temperature_changed": "Aktuálna teplota zmenená",
+      "current_humidity_changed": "Aktuálna vlhkosť zmenená"
     }
   }
 }

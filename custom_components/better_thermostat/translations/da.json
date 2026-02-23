@@ -126,5 +126,20 @@
       "name": "Indstil eco-temperatur",
       "description": "Indstil måltemperaturen til en midlertidig som nattilstand, og gem den gamle."
     }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "heating_active": "Termostat skifter til opvarmning",
+      "heating_stopped": "Termostat stopper opvarmning",
+      "humidity_high": "Luftfugtighed overstiger grænseværdi",
+      "window_opened": "Vindue åbnet",
+      "window_closed": "Vindue lukket",
+      "battery_low": "Batteri lavt",
+      "device_error": "Enhedsfejl registreret",
+      "target_temp_reached": "Måltemperatur nået",
+      "hvac_mode_changed": "HVAC-tilstand ændret",
+      "current_temperature_changed": "Aktuel temperatur ændret",
+      "current_humidity_changed": "Aktuel luftfugtighed ændret"
+    }
   }
 }

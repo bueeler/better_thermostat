@@ -168,5 +168,20 @@
       "name": "ECO Modunu Ayarla",
       "description": "ECO modunu etkinleştir veya devre dışı bırak."
     }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "heating_active": "Termostat ısıtma moduna geçiyor",
+      "heating_stopped": "Termostat ısıtmayı durduruyor",
+      "humidity_high": "Nem eşiği aşıldı",
+      "window_opened": "Pencere açıldı",
+      "window_closed": "Pencere kapandı",
+      "battery_low": "Pil zayıf",
+      "device_error": "Cihaz hatası tespit edildi",
+      "target_temp_reached": "Hedef sıcaklığa ulaşıldı",
+      "hvac_mode_changed": "HVAC modu değişti",
+      "current_temperature_changed": "Mevcut sıcaklık değişti",
+      "current_humidity_changed": "Mevcut nem değişti"
+    }
   }
 }

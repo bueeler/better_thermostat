@@ -126,5 +126,20 @@
       "name": "Установить эко-температуру",
       "description": "Установите целевую температуру на временный режим, например ночной, и сохраните старый."
     }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "heating_active": "Термостат переключается на обогрев",
+      "heating_stopped": "Термостат прекращает обогрев",
+      "humidity_high": "Влажность превышает порог",
+      "window_opened": "Окно открыто",
+      "window_closed": "Окно закрыто",
+      "battery_low": "Низкий заряд батареи",
+      "device_error": "Обнаружена ошибка устройства",
+      "target_temp_reached": "Целевая температура достигнута",
+      "hvac_mode_changed": "Режим HVAC изменён",
+      "current_temperature_changed": "Текущая температура изменилась",
+      "current_humidity_changed": "Текущая влажность изменилась"
+    }
   }
 }

@@ -1,6 +1,7 @@
 ---
 title: Configuration walkthrough
-nav_order: 2
+sidebar: 
+    order: 2
 description: Understand every important setup option and when to use it.
 ---
 

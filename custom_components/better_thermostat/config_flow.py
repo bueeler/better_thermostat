@@ -634,7 +634,8 @@ async def _prepare_advanced_context(
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Config flow for Better Thermostat."""
 
-    VERSION = 7
+    VERSION = 18
+
     CONNECTION_CLASS = config_entries.CONN_CLASS_LOCAL_POLL
 
     def __init__(self):

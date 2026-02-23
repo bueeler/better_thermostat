@@ -130,5 +130,20 @@
       "name": "Set ECO Mode",
       "description": "Enable or disable ECO mode."
     }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "heating_active": "Θερμοστάτης μεταβαίνει σε θέρμανση",
+      "heating_stopped": "Θερμοστάτης σταματά τη θέρμανση",
+      "humidity_high": "Υγρασία υπερβαίνει το όριο",
+      "window_opened": "Παράθυρο άνοιξε",
+      "window_closed": "Παράθυρο έκλεισε",
+      "battery_low": "Μπαταρία χαμηλή",
+      "device_error": "Εντοπίστηκε σφάλμα συσκευής",
+      "target_temp_reached": "Επιθυμητή θερμοκρασία επιτεύχθηκε",
+      "hvac_mode_changed": "Αλλαγή λειτουργίας HVAC",
+      "current_temperature_changed": "Αλλαγή τρέχουσας θερμοκρασίας",
+      "current_humidity_changed": "Αλλαγή τρέχουσας υγρασίας"
+    }
   }
 }

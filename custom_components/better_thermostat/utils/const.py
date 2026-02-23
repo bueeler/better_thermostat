@@ -6,7 +6,6 @@ import logging
 import os
 
 from homeassistant.components.climate.const import ClimateEntityFeature
-from homeassistant.const import ATTR_TEMPERATURE
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.config_validation import make_entity_service_schema
 import voluptuous as vol
@@ -77,18 +76,9 @@ ATTR_STATE_BATTERIES = "batteries"
 ATTR_STATE_OFF_TEMPERATURE = "off_temperature"
 # ECO mode logic removed; keep eco temperature for preset support
 
-SERVICE_RESTORE_SAVED_TARGET_TEMPERATURE = "restore_saved_target_temperature"
-SERVICE_SET_TEMP_TARGET_TEMPERATURE = "set_temp_target_temperature"
-# set_eco_mode service removed; ECO preset still supported via PRESET_ECO
+# set_eco_mode and save/restore temperature services removed; ECO preset still supported via PRESET_ECO
 SERVICE_RESET_HEATING_POWER = "reset_heating_power"
 SERVICE_RESET_PID_LEARNINGS = "reset_pid_learnings"
-
-BETTERTHERMOSTAT_SET_TEMPERATURE_SCHEMA = vol.All(
-    cv.has_at_least_one_key(ATTR_TEMPERATURE),
-    make_entity_service_schema(
-        {vol.Exclusive(ATTR_TEMPERATURE, "temperature"): vol.Coerce(float)}
-    ),
-)
 
 # Optional schema for resetting PID learnings
 BETTERTHERMOSTAT_RESET_PID_SCHEMA = make_entity_service_schema(

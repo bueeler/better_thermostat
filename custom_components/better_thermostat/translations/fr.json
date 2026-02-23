@@ -126,5 +126,20 @@
       "name": "Définir la température éco",
       "description": "Définissez la température cible sur une valeur temporaire comme le mode nuit, et enregistrez l'ancienne."
     }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "heating_active": "Le thermostat passe en mode chauffage",
+      "heating_stopped": "Le thermostat arrête le chauffage",
+      "humidity_high": "L'humidité dépasse le seuil",
+      "window_opened": "Fenêtre ouverte",
+      "window_closed": "Fenêtre fermée",
+      "battery_low": "Batterie faible",
+      "device_error": "Erreur de périphérique détectée",
+      "target_temp_reached": "Température cible atteinte",
+      "hvac_mode_changed": "Mode CVC modifié",
+      "current_temperature_changed": "Température actuelle modifiée",
+      "current_humidity_changed": "Humidité actuelle modifiée"
+    }
   }
 }

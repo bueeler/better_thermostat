@@ -100,13 +100,34 @@ async def maybe_set_sonoff_valve_percent(self, entity_id, percent: int) -> bool:
         opening_candidates = []
         closing_candidates = []
         generic_candidates = []
+
+        # Known translation_key values for Sonoff TRVZB valve entities.
+        # These are stable, language-independent identifiers set by the integration.
+        _TK_OPENING = {
+            "valve_opening_degree",
+            "valve_position",
+            "pi_heating_demand",
+            "heating_demand",
+            "valve",
+        }
+        _TK_CLOSING = {"valve_closing_degree"}
+
         for ent in entity_registry.entities.values():
             if ent.device_id != device_id or ent.domain != "number":
                 continue
+            # Prefer translation_key (stable, language-independent)
+            tk = getattr(ent, "translation_key", None)
+            if tk:
+                if tk in _TK_CLOSING:
+                    closing_candidates.append(ent.entity_id)
+                    continue
+                if tk in _TK_OPENING:
+                    opening_candidates.append(ent.entity_id)
+                    continue
+            # Fallback: string matching on entity_id / unique_id / original_name
             en = (ent.entity_id or "").lower()
             uid = (ent.unique_id or "").lower()
             name = (getattr(ent, "original_name", None) or "").lower()
-            # Prefer explicit Sonoff names first
             if (
                 "valve_opening_degree" in en
                 or "valve_opening_degree" in uid
@@ -330,9 +351,19 @@ async def maybe_set_external_temperature(self, entity_id, temperature: float) ->
             return False
         device_id = reg_entity.device_id
         target_entities = []
+
+        # Known translation_key values for Sonoff TRVZB external temperature input.
+        _TK_EXTERNAL_TEMP = {"external_temperature_input", "external_temperature"}
+
         for ent in entity_registry.entities.values():
             if ent.device_id != device_id or ent.domain != "number":
                 continue
+            # Prefer translation_key (stable, language-independent)
+            tk = getattr(ent, "translation_key", None)
+            if tk and tk in _TK_EXTERNAL_TEMP:
+                target_entities.append(ent.entity_id)
+                continue
+            # Fallback: string matching on entity_id / unique_id / original_name
             en = (ent.entity_id or "").lower()
             uid = (ent.unique_id or "").lower()
             name = (getattr(ent, "original_name", None) or "").lower()
