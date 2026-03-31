@@ -7,17 +7,13 @@ _initialize_sensors, _restore_state, _validate_hvac_mode.
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from homeassistant.components.climate.const import HVACMode
-from homeassistant.const import (
-    ATTR_TEMPERATURE,
-    STATE_UNAVAILABLE,
-    STATE_UNKNOWN,
-)
+from homeassistant.const import ATTR_TEMPERATURE, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import State
 import pytest
 
 from custom_components.better_thermostat.climate import (
-    BetterThermostat,
     DEFAULT_FALLBACK_TEMPERATURE,
+    BetterThermostat,
 )
 from custom_components.better_thermostat.utils.const import (
     ATTR_STATE_CALL_FOR_HEAT,
@@ -110,38 +106,45 @@ class TestCheckEntitiesReady:
     """Tests for _check_entities_ready."""
 
     def test_sensor_none_returns_false(self, bt):
+        """Return False when sensor state is None."""
         result = BetterThermostat._check_entities_ready(bt, None)
         assert result is False
 
     def test_sensor_unavailable_returns_false(self, bt):
+        """Return False when sensor is unavailable."""
         sensor = State(SENSOR_ID, STATE_UNAVAILABLE)
         result = BetterThermostat._check_entities_ready(bt, sensor)
         assert result is False
 
     def test_sensor_unknown_returns_false(self, bt):
+        """Return False when sensor state is unknown."""
         sensor = State(SENSOR_ID, STATE_UNKNOWN)
         result = BetterThermostat._check_entities_ready(bt, sensor)
         assert result is False
 
     def test_trv_none_returns_false(self, bt):
+        """Return False when TRV state is None."""
         sensor = _make_sensor_state()
         bt.hass.states.get.return_value = None
         result = BetterThermostat._check_entities_ready(bt, sensor)
         assert result is False
 
     def test_trv_unavailable_returns_false(self, bt):
+        """Return False when TRV is unavailable."""
         sensor = _make_sensor_state()
         bt.hass.states.get.return_value = State(TRV_ID, STATE_UNAVAILABLE)
         result = BetterThermostat._check_entities_ready(bt, sensor)
         assert result is False
 
     def test_all_ready_returns_true(self, bt):
+        """Return True when all entities are ready."""
         sensor = _make_sensor_state()
         bt.hass.states.get.return_value = _make_trv_state()
         result = BetterThermostat._check_entities_ready(bt, sensor)
         assert result is True
 
     def test_multiple_trvs_second_unavailable(self, bt):
+        """Return False when any TRV is unavailable."""
         sensor = _make_sensor_state()
         bt.real_trvs = {TRV_ID: {}, TRV_ID_2: {}}
 
@@ -164,6 +167,7 @@ class TestCollectTrvStates:
     """Tests for _collect_trv_states."""
 
     def test_collects_single_trv(self, bt):
+        """Collect state for a single TRV."""
         trv_state = _make_trv_state()
         bt.hass.states.get.return_value = trv_state
         result = BetterThermostat._collect_trv_states(bt)
@@ -171,6 +175,7 @@ class TestCollectTrvStates:
         assert result[0] is trv_state
 
     def test_includes_cooler_when_available(self, bt):
+        """Include cooler entity in collected states."""
         bt.cooler_entity_id = COOLER_ID
         cooler_state = State(COOLER_ID, "cool", {"min_temp": 18, "max_temp": 28})
         trv_state = _make_trv_state()
@@ -188,6 +193,7 @@ class TestCollectTrvStates:
         assert cooler_state in result
 
     def test_skips_unavailable_cooler(self, bt):
+        """Test Skips unavailable cooler."""
         bt.cooler_entity_id = COOLER_ID
         trv_state = _make_trv_state()
 
@@ -203,6 +209,7 @@ class TestCollectTrvStates:
         assert len(result) == 1
 
     def test_missing_trv_state_skipped(self, bt):
+        """Test Missing trv state skipped."""
         bt.real_trvs = {TRV_ID: {}, TRV_ID_2: {}}
 
         def side_effect(entity_id):
@@ -224,6 +231,7 @@ class TestResolveTemperatureRange:
     """Tests for _resolve_temperature_range."""
 
     def test_normal_range(self, bt):
+        """Test Normal range."""
         states = [_make_trv_state(attrs={"min_temp": 5.0, "max_temp": 30.0})]
         BetterThermostat._resolve_temperature_range(bt, states)
         assert bt.bt_min_temp == 5.0
@@ -231,9 +239,7 @@ class TestResolveTemperatureRange:
 
     def test_min_greater_than_max(self, bt):
         """When heater min > cooler max, range is still set."""
-        states = [
-            _make_trv_state(attrs={"min_temp": 20.0, "max_temp": 15.0}),
-        ]
+        states = [_make_trv_state(attrs={"min_temp": 20.0, "max_temp": 15.0})]
         # Set attributes so reduce_attribute returns the right values
         bt.bt_min_temp = None
         bt.bt_max_temp = None
@@ -243,12 +249,14 @@ class TestResolveTemperatureRange:
         assert bt.bt_max_temp == 15.0
 
     def test_step_already_set_not_overwritten(self, bt):
+        """Test Step already set not overwritten."""
         bt.bt_target_temp_step = 1.0
         states = [_make_trv_state(attrs={"target_temp_step": 0.5})]
         BetterThermostat._resolve_temperature_range(bt, states)
         assert bt.bt_target_temp_step == 1.0
 
     def test_step_none_gets_resolved(self, bt):
+        """Test Step none gets resolved."""
         bt.bt_target_temp_step = None
         states = [_make_trv_state(attrs={"target_temp_step": 0.5})]
         BetterThermostat._resolve_temperature_range(bt, states)
@@ -264,12 +272,14 @@ class TestInitializeSensors:
     """Tests for _initialize_sensors."""
 
     def test_sensor_ok_sets_cur_temp(self, bt):
+        """Test Sensor ok sets cur temp."""
         sensor = _make_sensor_state("21.5")
         BetterThermostat._initialize_sensors(bt, sensor)
         assert bt.cur_temp is not None
         assert SENSOR_ID in bt.all_entities
 
     def test_sensor_unavailable_falls_back_to_trv(self, bt):
+        """Test Sensor unavailable falls back to trv."""
         sensor = State(SENSOR_ID, STATE_UNAVAILABLE)
         trv_state = _make_trv_state(attrs={"current_temperature": 19.5})
         bt.hass.states.get.return_value = trv_state
@@ -278,6 +288,7 @@ class TestInitializeSensors:
         assert bt.degraded_mode is True
 
     def test_no_sensor_no_trv_uses_default(self, bt):
+        """Test No sensor no trv uses default."""
         sensor = State(SENSOR_ID, STATE_UNAVAILABLE)
         # TRV has no current_temperature
         trv_state = _make_trv_state(attrs={"current_temperature": None})
@@ -286,6 +297,7 @@ class TestInitializeSensors:
         assert bt.cur_temp == DEFAULT_FALLBACK_TEMPERATURE
 
     def test_window_open_detected(self, bt):
+        """Test Window open detected."""
         bt.window_id = WINDOW_ID
         sensor = _make_sensor_state("20.0")
 
@@ -300,12 +312,14 @@ class TestInitializeSensors:
         assert WINDOW_ID in bt.all_entities
 
     def test_window_none_defaults_closed(self, bt):
+        """Test Window none defaults closed."""
         bt.window_id = None
         sensor = _make_sensor_state("20.0")
         BetterThermostat._initialize_sensors(bt, sensor)
         assert bt.window_open is False
 
     def test_humidity_sensor_initialized(self, bt):
+        """Test Humidity sensor initialized."""
         bt.humidity_sensor_entity_id = HUMIDITY_ID
         sensor = _make_sensor_state("20.0")
         bt.hass.states.get.return_value = State(HUMIDITY_ID, "55.0")
@@ -313,6 +327,7 @@ class TestInitializeSensors:
         assert HUMIDITY_ID in bt.all_entities
 
     def test_ema_initialized_with_cur_temp(self, bt):
+        """Test Ema initialized with cur temp."""
         sensor = _make_sensor_state("21.5")
         with patch(
             "custom_components.better_thermostat.events.temperature._update_external_temp_ema"
@@ -331,6 +346,7 @@ class TestRestoreState:
 
     @pytest.mark.asyncio
     async def test_restores_ema_and_slope(self, bt):
+        """Test Restores ema and slope."""
         old = MagicMock()
         old.state = "heat"
         old.attributes = {
@@ -350,6 +366,7 @@ class TestRestoreState:
 
     @pytest.mark.asyncio
     async def test_target_clamped_to_min(self, bt):
+        """Test Target clamped to min."""
         old = MagicMock()
         old.state = "heat"
         old.attributes = {ATTR_TEMPERATURE: 2.0}  # below min
@@ -365,6 +382,7 @@ class TestRestoreState:
 
     @pytest.mark.asyncio
     async def test_target_clamped_to_max(self, bt):
+        """Test Target clamped to max."""
         old = MagicMock()
         old.state = "heat"
         old.attributes = {ATTR_TEMPERATURE: 35.0}  # above max
@@ -380,12 +398,10 @@ class TestRestoreState:
 
     @pytest.mark.asyncio
     async def test_restores_preset_mode(self, bt):
+        """Test Restores preset mode."""
         old = MagicMock()
         old.state = "heat"
-        old.attributes = {
-            ATTR_TEMPERATURE: 22.0,
-            "preset_mode": "comfort",
-        }
+        old.attributes = {ATTR_TEMPERATURE: 22.0, "preset_mode": "comfort"}
         bt.async_get_last_state = AsyncMock(return_value=old)
         bt._preset_temperatures = {"comfort": 22.0, "eco": 18.0}
 
@@ -396,6 +412,7 @@ class TestRestoreState:
 
     @pytest.mark.asyncio
     async def test_restores_heating_power_clamped(self, bt):
+        """Test Restores heating power clamped."""
         old = MagicMock()
         old.state = "heat"
         old.attributes = {
@@ -412,6 +429,7 @@ class TestRestoreState:
 
     @pytest.mark.asyncio
     async def test_no_old_state_uses_trv_defaults(self, bt):
+        """Test No old state uses trv defaults."""
         bt.async_get_last_state = AsyncMock(return_value=None)
         bt.bt_target_temp = None
 
@@ -423,12 +441,10 @@ class TestRestoreState:
 
     @pytest.mark.asyncio
     async def test_restores_call_for_heat(self, bt):
+        """Test Restores call for heat."""
         old = MagicMock()
         old.state = "heat"
-        old.attributes = {
-            ATTR_TEMPERATURE: 21.0,
-            ATTR_STATE_CALL_FOR_HEAT: True,
-        }
+        old.attributes = {ATTR_TEMPERATURE: 21.0, ATTR_STATE_CALL_FOR_HEAT: True}
         bt.async_get_last_state = AsyncMock(return_value=old)
         bt._preset_temperatures = {}
 
@@ -447,6 +463,7 @@ class TestValidateHvacMode:
     """Tests for _validate_hvac_mode."""
 
     def test_already_set_stays(self, bt):
+        """Test Already set stays."""
         bt.bt_hvac_mode = HVACMode.HEAT
         bt.humidity_sensor_entity_id = None
         states = [_make_trv_state(state="heat")]
@@ -454,6 +471,7 @@ class TestValidateHvacMode:
         assert bt.bt_hvac_mode == HVACMode.HEAT
 
     def test_none_mode_all_off_sets_off(self, bt):
+        """Test None mode all off sets off."""
         bt.bt_hvac_mode = None
         bt.humidity_sensor_entity_id = None
         states = [_make_trv_state(state="off")]
@@ -461,6 +479,7 @@ class TestValidateHvacMode:
         assert bt.bt_hvac_mode == HVACMode.OFF
 
     def test_none_mode_most_heat_sets_heat(self, bt):
+        """Test None mode most heat sets heat."""
         bt.bt_hvac_mode = None
         bt.humidity_sensor_entity_id = None
         states = [
@@ -471,6 +490,7 @@ class TestValidateHvacMode:
         assert bt.bt_hvac_mode == HVACMode.HEAT
 
     def test_invalid_mode_forced_to_heat(self, bt):
+        """Test Invalid mode forced to heat."""
         bt.bt_hvac_mode = "auto"  # not in allowed set
         bt.humidity_sensor_entity_id = None
         states = [_make_trv_state(state="heat")]
@@ -478,6 +498,7 @@ class TestValidateHvacMode:
         assert bt.bt_hvac_mode == HVACMode.HEAT
 
     def test_last_main_hvac_mode_default(self, bt):
+        """Test Last main hvac mode default."""
         bt.bt_hvac_mode = HVACMode.HEAT
         bt.last_main_hvac_mode = None
         bt.humidity_sensor_entity_id = None
@@ -486,6 +507,7 @@ class TestValidateHvacMode:
         assert bt.last_main_hvac_mode == HVACMode.HEAT
 
     def test_last_window_state_set(self, bt):
+        """Test Last window state set."""
         bt.bt_hvac_mode = HVACMode.HEAT
         bt.window_open = True
         bt.humidity_sensor_entity_id = None
@@ -494,6 +516,7 @@ class TestValidateHvacMode:
         assert bt.last_window_state is True
 
     def test_humidity_sensor_re_read(self, bt):
+        """Test Humidity sensor re read."""
         bt.bt_hvac_mode = HVACMode.HEAT
         bt.humidity_sensor_entity_id = HUMIDITY_ID
         bt.hass.states.get.return_value = State(HUMIDITY_ID, "60.0")
@@ -503,6 +526,7 @@ class TestValidateHvacMode:
         assert bt._current_humidity is not None
 
     def test_humidity_sensor_none_sets_zero(self, bt):
+        """Test Humidity sensor none sets zero."""
         bt.bt_hvac_mode = HVACMode.HEAT
         bt.humidity_sensor_entity_id = HUMIDITY_ID
         bt.hass.states.get.return_value = None

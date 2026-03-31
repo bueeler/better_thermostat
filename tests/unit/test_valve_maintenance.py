@@ -60,7 +60,7 @@ def _info(
     max_temp: float = 30,
     min_temp: float = 5,
 ) -> MaintenanceTrvInfo:
-    """Convenience factory for MaintenanceTrvInfo."""
+    """Create a MaintenanceTrvInfo with sensible defaults."""
     return MaintenanceTrvInfo(
         entity_id=entity_id,
         cur_mode=cur_mode,
@@ -82,18 +82,24 @@ def _ha_state(state: str = "heat", temperature: float = 21.0):
 
 
 class TestCollectMaintenanceTrvs:
+    """Tests for collect maintenance trvs."""
+
     def test_empty_dict(self):
+        """Test Empty dict."""
         assert collect_maintenance_trvs({}) == []
 
     def test_no_maintenance_enabled(self):
+        """Test No maintenance enabled."""
         trvs = {"trv1": _trv(maintenance=False), "trv2": _trv(maintenance=False)}
         assert collect_maintenance_trvs(trvs) == []
 
     def test_single_enabled(self):
+        """Test Single enabled."""
         trvs = {"trv1": _trv(maintenance=True)}
         assert collect_maintenance_trvs(trvs) == ["trv1"]
 
     def test_mixed(self):
+        """Test Mixed."""
         trvs = {
             "trv1": _trv(maintenance=False),
             "trv2": _trv(maintenance=True),
@@ -119,6 +125,8 @@ class TestCollectMaintenanceTrvs:
 
 
 class TestComputeNextMaintenance:
+    """Tests for compute next maintenance."""
+
     def test_default_168h(self):
         """Without quirks the interval should be ~168 h (± 7 % jitter)."""
         trvs = {"trv1": _trv(maintenance=True)}
@@ -128,6 +136,7 @@ class TestComputeNextMaintenance:
         assert 168 <= delta_h <= 168 + 168 * 0.07 + 1
 
     def test_quirks_shorter_interval(self):
+        """Test Quirks shorter interval."""
         quirks = SimpleNamespace(VALVE_MAINTENANCE_INTERVAL_HOURS=24)
         trvs = {"trv1": _trv(maintenance=True, quirks=quirks)}
         now = datetime(2026, 1, 1)
@@ -137,6 +146,7 @@ class TestComputeNextMaintenance:
         assert 24 <= delta_h <= 24 + 24 * 0.07 + 1
 
     def test_minimum_across_trvs(self):
+        """Test Minimum across trvs."""
         q12 = SimpleNamespace(VALVE_MAINTENANCE_INTERVAL_HOURS=12)
         q48 = SimpleNamespace(VALVE_MAINTENANCE_INTERVAL_HOURS=48)
         trvs = {
@@ -156,7 +166,10 @@ class TestComputeNextMaintenance:
 
 
 class TestComputeInitialMaintenance:
+    """Tests for compute initial maintenance."""
+
     def test_default_range(self):
+        """Test Default range."""
         trvs = {"trv1": _trv(maintenance=True)}
         now = datetime(2026, 1, 1)
         result = compute_initial_maintenance(trvs, ["trv1"], now=now)
@@ -164,6 +177,7 @@ class TestComputeInitialMaintenance:
         assert 1 <= delta_h <= 24 * 5
 
     def test_short_quirk_constrains_delay(self):
+        """Test Short quirk constrains delay."""
         quirks = SimpleNamespace(VALVE_MAINTENANCE_INTERVAL_HOURS=6)
         trvs = {"trv1": _trv(maintenance=True, quirks=quirks)}
         now = datetime(2026, 1, 1)
@@ -179,12 +193,16 @@ class TestComputeInitialMaintenance:
 
 
 class TestBuildTrvSnapshots:
+    """Tests for build trv snapshots."""
+
     def test_state_none_skipped(self):
+        """Test State none skipped."""
         trvs = {"trv1": _trv(maintenance=True)}
         result = build_trv_snapshots(trvs, ["trv1"], lambda _: None, "Test")
         assert result == []
 
     def test_basic_snapshot(self):
+        """Test Basic snapshot."""
         trvs = {"trv1": _trv(maintenance=True, max_temp=28, min_temp=6)}
 
         def get_state(eid):
@@ -200,20 +218,18 @@ class TestBuildTrvSnapshots:
         assert result[0].use_direct_valve is False
 
     def test_direct_valve_detection(self):
+        """Test Direct valve detection."""
         quirks = SimpleNamespace(override_set_valve=lambda: None)
         trvs = {
             "trv1": _trv(
-                maintenance=True,
-                quirks=quirks,
-                calibration="direct_valve_based",
+                maintenance=True, quirks=quirks, calibration="direct_valve_based"
             )
         }
-        result = build_trv_snapshots(
-            trvs, ["trv1"], lambda _: _ha_state(), "Test"
-        )
+        result = build_trv_snapshots(trvs, ["trv1"], lambda _: _ha_state(), "Test")
         assert result[0].use_direct_valve is True
 
     def test_valve_entity_direct(self):
+        """Test Valve entity direct."""
         trvs = {
             "trv1": _trv(
                 maintenance=True,
@@ -221,9 +237,7 @@ class TestBuildTrvSnapshots:
                 calibration="direct_valve_based",
             )
         }
-        result = build_trv_snapshots(
-            trvs, ["trv1"], lambda _: _ha_state(), "Test"
-        )
+        result = build_trv_snapshots(trvs, ["trv1"], lambda _: _ha_state(), "Test")
         assert result[0].use_direct_valve is True
 
 
@@ -233,8 +247,11 @@ class TestBuildTrvSnapshots:
 
 
 class TestOpenStep:
+    """Tests for open step."""
+
     @pytest.mark.asyncio
     async def test_direct_valve_sets_100(self):
+        """Test Direct valve sets 100."""
         valve_fn = AsyncMock(return_value=True)
         temp_fn = AsyncMock()
         info = _info(use_direct_valve=True)
@@ -244,6 +261,7 @@ class TestOpenStep:
 
     @pytest.mark.asyncio
     async def test_temp_based_sets_max(self):
+        """Test Temp based sets max."""
         valve_fn = AsyncMock()
         temp_fn = AsyncMock()
         info = _info(use_direct_valve=False, max_temp=28)
@@ -253,6 +271,7 @@ class TestOpenStep:
 
     @pytest.mark.asyncio
     async def test_off_mode_no_call(self):
+        """Test Off mode no call."""
         valve_fn = AsyncMock()
         temp_fn = AsyncMock()
         info = _info(cur_mode="off", use_direct_valve=False)
@@ -262,8 +281,11 @@ class TestOpenStep:
 
 
 class TestCloseStep:
+    """Tests for close step."""
+
     @pytest.mark.asyncio
     async def test_direct_valve_sets_0(self):
+        """Test Direct valve sets 0."""
         valve_fn = AsyncMock(return_value=True)
         temp_fn = AsyncMock()
         info = _info(use_direct_valve=True)
@@ -273,6 +295,7 @@ class TestCloseStep:
 
     @pytest.mark.asyncio
     async def test_temp_based_sets_min(self):
+        """Test Temp based sets min."""
         valve_fn = AsyncMock()
         temp_fn = AsyncMock()
         info = _info(use_direct_valve=False, min_temp=4)
@@ -282,6 +305,7 @@ class TestCloseStep:
 
     @pytest.mark.asyncio
     async def test_off_mode_no_call(self):
+        """Test Off mode no call."""
         valve_fn = AsyncMock()
         temp_fn = AsyncMock()
         info = _info(cur_mode="off", use_direct_valve=False)
@@ -296,8 +320,11 @@ class TestCloseStep:
 
 
 class TestRestoreOne:
+    """Tests for restore one."""
+
     @pytest.mark.asyncio
     async def test_restores_temp_and_mode(self):
+        """Test Restores temp and mode."""
         temp_fn = AsyncMock()
         mode_fn = AsyncMock()
         info = _info(cur_temp=22.5, cur_mode="heat")
@@ -307,6 +334,7 @@ class TestRestoreOne:
 
     @pytest.mark.asyncio
     async def test_cur_temp_none_skips_temperature(self):
+        """Test Cur temp none skips temperature."""
         temp_fn = AsyncMock()
         mode_fn = AsyncMock()
         info = _info(cur_temp=None)
@@ -316,6 +344,7 @@ class TestRestoreOne:
 
     @pytest.mark.asyncio
     async def test_temp_exception_still_sets_mode(self):
+        """Test Temp exception still sets mode."""
         temp_fn = AsyncMock(side_effect=RuntimeError("fail"))
         mode_fn = AsyncMock()
         info = _info(cur_temp=20.0, cur_mode="heat")
@@ -329,6 +358,8 @@ class TestRestoreOne:
 
 
 class TestRunValveMaintenance:
+    """Tests for run valve maintenance."""
+
     @pytest.mark.asyncio
     async def test_two_cycles_open_close(self):
         """Each TRV should get 2 open + 2 close calls."""
@@ -353,6 +384,7 @@ class TestRunValveMaintenance:
 
     @pytest.mark.asyncio
     async def test_multiple_trvs(self):
+        """Test Multiple trvs."""
         valve_fn = AsyncMock(return_value=True)
         temp_fn = AsyncMock()
         mode_fn = AsyncMock()
@@ -375,10 +407,13 @@ class TestRunValveMaintenance:
 
     @pytest.mark.asyncio
     async def test_temp_based_cycles(self):
+        """Test Temp based cycles."""
         valve_fn = AsyncMock()
         temp_fn = AsyncMock()
         mode_fn = AsyncMock()
-        infos = [_info(entity_id="trv1", use_direct_valve=False, max_temp=30, min_temp=5)]
+        infos = [
+            _info(entity_id="trv1", use_direct_valve=False, max_temp=30, min_temp=5)
+        ]
 
         await run_valve_maintenance(
             infos,
@@ -395,10 +430,15 @@ class TestRunValveMaintenance:
 
     @pytest.mark.asyncio
     async def test_restores_after_cycles(self):
+        """Test Restores after cycles."""
         valve_fn = AsyncMock(return_value=True)
         temp_fn = AsyncMock()
         mode_fn = AsyncMock()
-        infos = [_info(entity_id="trv1", cur_temp=22.0, cur_mode="heat", use_direct_valve=True)]
+        infos = [
+            _info(
+                entity_id="trv1", cur_temp=22.0, cur_mode="heat", use_direct_valve=True
+            )
+        ]
 
         await run_valve_maintenance(
             infos,
@@ -439,7 +479,11 @@ class TestRunValveMaintenance:
         valve_fn = AsyncMock()
         temp_fn = AsyncMock()
         mode_fn = AsyncMock()
-        infos = [_info(entity_id="trv1", cur_mode="off", use_direct_valve=False, cur_temp=20.0)]
+        infos = [
+            _info(
+                entity_id="trv1", cur_mode="off", use_direct_valve=False, cur_temp=20.0
+            )
+        ]
 
         await run_valve_maintenance(
             infos,

@@ -6,18 +6,17 @@ Groups:
 3. HeatLossTracker state machine
 """
 
-from collections import deque
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
-import pytest
 from homeassistant.components.climate.const import HVACAction
+import pytest
 
 from custom_components.better_thermostat.utils.thermal_learning import (
     CycleResult,
-    HeatLossTracker,
-    HeatLossUpdate,
     HeatingPowerTracker,
     HeatingPowerUpdate,
+    HeatLossTracker,
+    HeatLossUpdate,
     clamp,
     compute_env_factor,
     compute_weight_factor,
@@ -28,7 +27,7 @@ from custom_components.better_thermostat.utils.thermal_learning import (
 # Helpers
 # ---------------------------------------------------------------------------
 
-_NOW = datetime(2026, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+_NOW = datetime(2026, 1, 15, 12, 0, 0, tzinfo=UTC)
 
 
 def _ts(minutes: float = 0.0) -> datetime:
@@ -42,75 +41,98 @@ def _ts(minutes: float = 0.0) -> datetime:
 
 
 class TestEmaSmooth:
+    """Tests for ema smooth."""
+
     def test_basic_formula(self):
+        """Test Basic formula."""
         assert ema_smooth(10.0, 20.0, 0.1) == pytest.approx(11.0)
 
     def test_alpha_zero_keeps_old(self):
+        """Test Alpha zero keeps old."""
         assert ema_smooth(5.0, 100.0, 0.0) == pytest.approx(5.0)
 
     def test_alpha_one_replaces(self):
+        """Test Alpha one replaces."""
         assert ema_smooth(5.0, 100.0, 1.0) == pytest.approx(100.0)
 
     def test_symmetry(self):
         """EMA(a, b, α) and EMA(b, a, 1-α) should give the same result."""
-        assert ema_smooth(3.0, 7.0, 0.25) == pytest.approx(
-            ema_smooth(7.0, 3.0, 0.75)
-        )
+        assert ema_smooth(3.0, 7.0, 0.25) == pytest.approx(ema_smooth(7.0, 3.0, 0.75))
 
 
 class TestClamp:
+    """Tests for clamp."""
+
     def test_within_bounds(self):
+        """Test Within bounds."""
         assert clamp(5.0, 0.0, 10.0) == 5.0
 
     def test_below_min(self):
+        """Test Below min."""
         assert clamp(-1.0, 0.0, 10.0) == 0.0
 
     def test_above_max(self):
+        """Test Above max."""
         assert clamp(15.0, 0.0, 10.0) == 10.0
 
     def test_at_boundaries(self):
+        """Test At boundaries."""
         assert clamp(0.0, 0.0, 10.0) == 0.0
         assert clamp(10.0, 0.0, 10.0) == 10.0
 
 
 class TestComputeWeightFactor:
+    """Tests for compute weight factor."""
+
     def test_middle_of_range(self):
+        """Test Middle of range."""
         # min=18, max=22, target=20 → relative_pos=0.5 → 0.5+0.5=1.0
         assert compute_weight_factor(20.0, 18.0, 22.0) == pytest.approx(1.0)
 
     def test_at_min(self):
+        """Test At min."""
         # target=18 → relative_pos=0 → 0.5+0=0.5
         assert compute_weight_factor(18.0, 18.0, 22.0) == pytest.approx(0.5)
 
     def test_at_max(self):
+        """Test At max."""
         # target=22 → relative_pos=1.0 → 0.5+1.0=1.5
         assert compute_weight_factor(22.0, 18.0, 22.0) == pytest.approx(1.5)
 
     def test_target_none_returns_one(self):
+        """Test Target none returns one."""
         assert compute_weight_factor(None, 18.0, 22.0) == pytest.approx(1.0)
 
     def test_narrow_range_no_division_by_zero(self):
+        """Test Narrow range no division by zero."""
         # min == max → range clamped to 0.1
         result = compute_weight_factor(20.0, 20.0, 20.0)
         assert 0.5 <= result <= 1.5
 
 
 class TestComputeEnvFactor:
+    """Tests for compute env factor."""
+
     def test_no_outdoor(self):
+        """Test No outdoor."""
         assert compute_env_factor(None, 21.0) == 1.0
 
     def test_no_target(self):
+        """Test No target."""
         assert compute_env_factor(5.0, None) == 1.0
 
     def test_typical_gradient(self):
+        """Test Typical gradient."""
         # delta_env = 21-5 = 16, 16/20 = 0.8
         assert compute_env_factor(5.0, 21.0) == pytest.approx(0.8)
 
     def test_large_gradient_clamped(self):
+        """Test Large gradient clamped."""
         # delta_env = 21-(-10) = 31, 31/20 = 1.55 → clamp to 1.3
         assert compute_env_factor(-10.0, 21.0) == pytest.approx(1.3)
 
     def test_outdoor_above_target(self):
+        """Test Outdoor above target."""
         # delta_env = max(20-25, 0.1) = 0.1, 0.1/20 = 0.005 → clamp to 0.7
         assert compute_env_factor(25.0, 20.0) == pytest.approx(0.7)
 
@@ -124,6 +146,7 @@ class TestHeatingPowerTrackerTransitions:
     """Test state machine transitions."""
 
     def test_idle_to_heating_sets_start(self):
+        """Test Idle to heating sets start."""
         t = HeatingPowerTracker()
         t._prev_action = HVACAction.IDLE
         result = t.update(19.0, HVACAction.HEATING, _NOW)
@@ -134,6 +157,7 @@ class TestHeatingPowerTrackerTransitions:
         assert result.action_changed is True
 
     def test_heating_to_idle_sets_end(self):
+        """Test Heating to idle sets end."""
         t = HeatingPowerTracker()
         t._prev_action = HVACAction.HEATING
         t.start_temp = 19.0
@@ -145,6 +169,7 @@ class TestHeatingPowerTrackerTransitions:
         assert result.action_changed is True
 
     def test_peak_tracking_temp_still_rising(self):
+        """Test Peak tracking temp still rising."""
         t = HeatingPowerTracker()
         t._prev_action = HVACAction.IDLE
         t.start_temp = 19.0
@@ -169,7 +194,7 @@ class TestHeatingPowerTrackerFinalization:
         outdoor: float | None = None,
         target: float | None = 22.0,
     ) -> tuple[HeatingPowerTracker, HeatingPowerUpdate]:
-        """Helper: drive a tracker through a full heating cycle."""
+        """Drive a tracker through a full heating cycle."""
         t = HeatingPowerTracker(heating_power=initial_power)
 
         # Start heating
@@ -187,11 +212,13 @@ class TestHeatingPowerTrackerFinalization:
         return t, result
 
     def test_finalization_on_temp_drop(self):
+        """Test Finalization on temp drop."""
         t, result = self._run_complete_cycle()
         assert result.cycle_result is not None
         assert isinstance(result.cycle_result, CycleResult)
 
     def test_finalization_updates_heating_power(self):
+        """Test Finalization updates heating power."""
         t, result = self._run_complete_cycle(initial_power=0.05)
         # heating_rate = (21-19)/10 = 0.2, but EMA with alpha~0.1 keeps it close to 0.05
         assert t.heating_power != 0.05  # changed
@@ -199,6 +226,7 @@ class TestHeatingPowerTrackerFinalization:
         assert result.cycle_result.power_changed is True
 
     def test_finalization_on_timeout(self):
+        """Test Finalization on timeout."""
         t = HeatingPowerTracker(heating_power=0.05)
         t.update(19.0, HVACAction.HEATING, _NOW)
         t.update(21.0, HVACAction.IDLE, _ts(5))
@@ -228,10 +256,7 @@ class TestHeatingPowerTrackerFinalization:
     def test_ema_smoothing_correctness(self):
         """Verify the EMA formula is applied correctly."""
         t, _ = self._run_complete_cycle(
-            start_temp=19.0,
-            peak_temp=21.0,
-            duration_min=10.0,
-            initial_power=0.05,
+            start_temp=19.0, peak_temp=21.0, duration_min=10.0, initial_power=0.05
         )
         # heating_rate = 2.0/10 = 0.2
         # weight_factor with target=22, min=18, max=21 (updated to max(21,22)=22)
@@ -315,16 +340,19 @@ class TestHeatingPowerTrackerFinalization:
         assert "rate_c_min" in entry
 
     def test_reset_power(self):
+        """Test Reset power."""
         t = HeatingPowerTracker(heating_power=0.15)
         t.reset_power()
         assert t.heating_power == 0.01
 
     def test_reset_power_custom_value(self):
+        """Test Reset power custom value."""
         t = HeatingPowerTracker(heating_power=0.15)
         t.reset_power(0.03)
         assert t.heating_power == 0.03
 
     def test_action_changed_flag(self):
+        """Test Action changed flag."""
         t = HeatingPowerTracker()
         t._prev_action = HVACAction.IDLE
         result = t.update(20.0, HVACAction.HEATING, _NOW)
@@ -369,7 +397,10 @@ class TestHeatingPowerTrackerFinalization:
 
 
 class TestHeatLossTrackerWindowOpen:
+    """Tests for heat loss tracker window open."""
+
     def test_window_open_resets_tracking(self):
+        """Test Window open resets tracking."""
         t = HeatLossTracker()
         t.start_temp = 21.0
         t.start_ts = _NOW
@@ -393,7 +424,10 @@ class TestHeatLossTrackerWindowOpen:
 
 
 class TestHeatLossTrackerIdle:
+    """Tests for heat loss tracker idle."""
+
     def test_idle_starts_tracking(self):
+        """Test Idle starts tracking."""
         t = HeatLossTracker()
         t.update(21.0, HVACAction.IDLE, _NOW)
         assert t.start_temp == 21.0
@@ -401,6 +435,7 @@ class TestHeatLossTrackerIdle:
         assert t.end_temp == 21.0
 
     def test_tracks_lowest_temperature(self):
+        """Test Tracks lowest temperature."""
         t = HeatLossTracker()
         t.update(21.0, HVACAction.IDLE, _NOW)
         t.update(20.5, HVACAction.IDLE, _ts(5))
@@ -417,6 +452,8 @@ class TestHeatLossTrackerIdle:
 
 
 class TestHeatLossTrackerFinalization:
+    """Tests for heat loss tracker finalization."""
+
     def _run_complete_loss_cycle(
         self,
         start_temp: float = 21.0,
@@ -431,10 +468,12 @@ class TestHeatLossTrackerFinalization:
         return t, result
 
     def test_finalization_on_heating_restart(self):
+        """Test Finalization on heating restart."""
         t, result = self._run_complete_loss_cycle()
         assert result.cycle_result is not None
 
     def test_finalization_updates_loss_rate(self):
+        """Test Finalization updates loss rate."""
         t, result = self._run_complete_loss_cycle(initial_loss=0.01)
         # loss_rate = (21-20)/10 = 0.1 → EMA moves from 0.01 toward 0.1
         assert t.heat_loss_rate > 0.01
@@ -459,6 +498,7 @@ class TestHeatLossTrackerFinalization:
         assert t.heat_loss_rate == pytest.approx(0.019, rel=0.01)
 
     def test_min_clamping(self):
+        """Test Min clamping."""
         from custom_components.better_thermostat.utils.const import MIN_HEAT_LOSS
 
         t = HeatLossTracker(heat_loss_rate=MIN_HEAT_LOSS)
@@ -468,6 +508,7 @@ class TestHeatLossTrackerFinalization:
         assert t.heat_loss_rate >= MIN_HEAT_LOSS
 
     def test_max_clamping(self):
+        """Test Max clamping."""
         from custom_components.better_thermostat.utils.const import MAX_HEAT_LOSS
 
         t = HeatLossTracker(heat_loss_rate=MAX_HEAT_LOSS)
@@ -477,6 +518,7 @@ class TestHeatLossTrackerFinalization:
         assert t.heat_loss_rate <= MAX_HEAT_LOSS
 
     def test_telemetry_stats_format(self):
+        """Test Telemetry stats format."""
         t, _ = self._run_complete_loss_cycle()
         assert len(t.stats) == 1
         entry = t.stats[0]
@@ -487,6 +529,7 @@ class TestHeatLossTrackerFinalization:
         assert "loss" in entry
 
     def test_telemetry_cycles_format(self):
+        """Test Telemetry cycles format."""
         t, _ = self._run_complete_loss_cycle()
         assert len(t.cycles) == 1
         entry = t.cycles[0]

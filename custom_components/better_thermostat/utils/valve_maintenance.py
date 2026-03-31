@@ -7,11 +7,11 @@ receive) and can be tested without Home Assistant.
 from __future__ import annotations
 
 import asyncio
-import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+import logging
 from random import randint
-from typing import Awaitable, Callable
 
 from homeassistant.components.climate.const import HVACMode
 from homeassistant.core import State
@@ -62,10 +62,7 @@ def collect_maintenance_trvs(real_trvs: TrvMap) -> list[str]:
 
 
 def compute_next_maintenance(
-    real_trvs: TrvMap,
-    trv_ids: list[str],
-    *,
-    now: datetime | None = None,
+    real_trvs: TrvMap, trv_ids: list[str], *, now: datetime | None = None
 ) -> datetime:
     """Compute the next maintenance datetime based on TRV quirks.
 
@@ -86,10 +83,7 @@ def compute_next_maintenance(
 
 
 def compute_initial_maintenance(
-    real_trvs: TrvMap,
-    trv_ids: list[str],
-    *,
-    now: datetime | None = None,
+    real_trvs: TrvMap, trv_ids: list[str], *, now: datetime | None = None
 ) -> datetime:
     """Compute the *first* maintenance datetime after startup.
 
@@ -173,9 +167,7 @@ SetTemperatureFn = Callable[[str, float], Awaitable[None]]
 SetHvacModeFn = Callable[[str, str], Awaitable[None]]
 
 
-async def _set_valve_pct(
-    trv_id: str, pct: int, set_valve_fn: SetValveFn
-) -> bool:
+async def _set_valve_pct(trv_id: str, pct: int, set_valve_fn: SetValveFn) -> bool:
     """Set valve percentage via callback."""
     try:
         return bool(await set_valve_fn(trv_id, int(pct)))
@@ -304,7 +296,4 @@ async def run_valve_maintenance(
         return_exceptions=True,
     )
 
-    _LOGGER.info(
-        "better_thermostat %s: valve maintenance finished",
-        device_name,
-    )
+    _LOGGER.info("better_thermostat %s: valve maintenance finished", device_name)

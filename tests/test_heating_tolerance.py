@@ -54,14 +54,12 @@ def mock_bt():
     bt._compute_hvac_action_pure = types.MethodType(
         BetterThermostat._compute_hvac_action_pure, bt
     )
-    bt._commit_hvac_action = types.MethodType(
-        BetterThermostat._commit_hvac_action, bt
-    )
+    bt._commit_hvac_action = types.MethodType(BetterThermostat._commit_hvac_action, bt)
     return bt
 
 
 def _compute_and_commit(bt) -> HVACAction:
-    """Helper: compute + commit, return the action."""
+    """Compute and commit the HVAC action, return the result."""
     result = bt._compute_hvac_action_pure()
     bt._commit_hvac_action(result)
     return result.action

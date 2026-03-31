@@ -4,30 +4,28 @@ Tests the 6 most important methods using unbound-method calls with a shared
 mock_bt fixture (MagicMock with explicit attributes).
 """
 
-from collections import deque
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 from homeassistant.components.climate.const import (
     ATTR_HVAC_MODE,
     ATTR_TARGET_TEMP_HIGH,
     ATTR_TARGET_TEMP_LOW,
-    HVACAction,
-    HVACMode,
     PRESET_AWAY,
     PRESET_COMFORT,
     PRESET_ECO,
     PRESET_NONE,
+    HVACAction,
+    HVACMode,
 )
 from homeassistant.const import ATTR_TEMPERATURE
+import pytest
 
 from custom_components.better_thermostat.climate import BetterThermostat
 from custom_components.better_thermostat.utils.thermal_learning import (
     HeatingPowerTracker,
     HeatLossTracker,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixture
@@ -58,7 +56,7 @@ def mock_bt():
     bt._tolerance_hold_active = False
     # Thermal trackers (real objects – new thin-wrapper methods delegate to these)
     bt._heating_tracker = HeatingPowerTracker(
-        heating_power=0.05, min_target=18.0, max_target=24.0,
+        heating_power=0.05, min_target=18.0, max_target=24.0
     )
     bt._loss_tracker = HeatLossTracker()
     bt.old_attr_hvac_action = None
@@ -74,21 +72,15 @@ def mock_bt():
         lambda self, v: setattr(self._heating_tracker, "normalized_power", v),
     )
     type(bt).last_heating_power_stats = property(
-        lambda self: self._heating_tracker.stats,
+        lambda self: self._heating_tracker.stats
     )
-    type(bt).heating_cycles = property(
-        lambda self: self._heating_tracker.cycles,
-    )
+    type(bt).heating_cycles = property(lambda self: self._heating_tracker.cycles)
     type(bt).heat_loss_rate = property(
         lambda self: self._loss_tracker.heat_loss_rate,
         lambda self, v: setattr(self._loss_tracker, "heat_loss_rate", v),
     )
-    type(bt).last_heat_loss_stats = property(
-        lambda self: self._loss_tracker.stats,
-    )
-    type(bt).loss_cycles = property(
-        lambda self: self._loss_tracker.cycles,
-    )
+    type(bt).last_heat_loss_stats = property(lambda self: self._loss_tracker.stats)
+    type(bt).loss_cycles = property(lambda self: self._loss_tracker.cycles)
     # Presets
     bt._preset_mode = PRESET_NONE
     bt._preset_temperature = None
@@ -115,12 +107,8 @@ def mock_bt():
     bt._should_heat_with_tolerance = lambda prev, tol: (
         BetterThermostat._should_heat_with_tolerance(bt, prev, tol)
     )
-    bt._compute_hvac_action = lambda: (
-        BetterThermostat._compute_hvac_action(bt)
-    )
-    bt._get_outdoor_temp = lambda: (
-        BetterThermostat._get_outdoor_temp(bt)
-    )
+    bt._compute_hvac_action = lambda: BetterThermostat._compute_hvac_action(bt)
+    bt._get_outdoor_temp = lambda: BetterThermostat._get_outdoor_temp(bt)
     return bt
 
 
@@ -136,39 +124,47 @@ class TestShouldHeatWithTolerance:
         return BetterThermostat._should_heat_with_tolerance(bt, previous_action, tol)
 
     def test_target_temp_none(self, mock_bt):
+        """Return False when target temp is None."""
         mock_bt.bt_target_temp = None
         assert self._call(mock_bt, HVACAction.IDLE, 0.5) is False
 
     def test_cur_temp_none(self, mock_bt):
+        """Return False when current temp is None."""
         mock_bt.cur_temp = None
         assert self._call(mock_bt, HVACAction.IDLE, 0.5) is False
 
     def test_heating_cur_below_target(self, mock_bt):
+        """Continue heating when current temp is below target."""
         mock_bt.cur_temp = 21.5
         mock_bt.bt_target_temp = 22.0
         assert self._call(mock_bt, HVACAction.HEATING, 0.5) is True
 
     def test_heating_cur_equals_target(self, mock_bt):
+        """Stop heating when current temp equals target."""
         mock_bt.cur_temp = 22.0
         mock_bt.bt_target_temp = 22.0
         assert self._call(mock_bt, HVACAction.HEATING, 0.5) is False
 
     def test_heating_cur_above_target(self, mock_bt):
+        """Stop heating when current temp exceeds target."""
         mock_bt.cur_temp = 22.5
         mock_bt.bt_target_temp = 22.0
         assert self._call(mock_bt, HVACAction.HEATING, 0.5) is False
 
     def test_idle_cur_below_threshold(self, mock_bt):
+        """Start heating when idle and temp is below threshold."""
         mock_bt.cur_temp = 21.0
         mock_bt.bt_target_temp = 22.0
         assert self._call(mock_bt, HVACAction.IDLE, 0.5) is True
 
     def test_idle_cur_equals_threshold(self, mock_bt):
+        """Stay idle when current temp equals threshold."""
         mock_bt.cur_temp = 21.5
         mock_bt.bt_target_temp = 22.0
         assert self._call(mock_bt, HVACAction.IDLE, 0.5) is False
 
     def test_idle_cur_above_threshold(self, mock_bt):
+        """Stay idle when current temp is above threshold."""
         mock_bt.cur_temp = 21.8
         mock_bt.bt_target_temp = 22.0
         assert self._call(mock_bt, HVACAction.IDLE, 0.5) is False
@@ -201,22 +197,27 @@ class TestComputeHvacAction:
         return BetterThermostat._compute_hvac_action(bt)
 
     def test_target_temp_none_returns_idle(self, mock_bt):
+        """Return IDLE when target temp is None."""
         mock_bt.bt_target_temp = None
         assert self._call(mock_bt) == HVACAction.IDLE
 
     def test_cur_temp_none_returns_idle(self, mock_bt):
+        """Return IDLE when current temp is None."""
         mock_bt.cur_temp = None
         assert self._call(mock_bt) == HVACAction.IDLE
 
     def test_hvac_mode_off_returns_off(self, mock_bt):
+        """Return OFF when HVAC mode is OFF."""
         mock_bt.hvac_mode = HVACMode.OFF
         assert self._call(mock_bt) == HVACAction.OFF
 
     def test_bt_hvac_mode_off_returns_off(self, mock_bt):
+        """Return OFF when BT HVAC mode is OFF."""
         mock_bt.bt_hvac_mode = HVACMode.OFF
         assert self._call(mock_bt) == HVACAction.OFF
 
     def test_window_open_returns_idle(self, mock_bt):
+        """Return IDLE when window is open."""
         mock_bt.window_open = True
         assert self._call(mock_bt) == HVACAction.IDLE
 
@@ -284,7 +285,7 @@ class TestComputeHvacAction:
         mock_bt.bt_target_temp = 22.0
         mock_bt._tolerance_last_action = HVACAction.IDLE
         mock_bt.real_trvs = {
-            "climate.trv1": {"hvac_action": "heating", "ignore_trv_states": True},
+            "climate.trv1": {"hvac_action": "heating", "ignore_trv_states": True}
         }
         assert self._call(mock_bt) == HVACAction.IDLE
 
@@ -321,6 +322,7 @@ class TestCalculateHeatingPower:
 
     @pytest.mark.asyncio
     async def test_cur_temp_none_early_return(self, mock_bt):
+        """Skip update when current temp is None."""
         mock_bt.cur_temp = None
         old_power = mock_bt.heating_power
         await self._call(mock_bt)
@@ -344,7 +346,7 @@ class TestCalculateHeatingPower:
         )
 
         with patch("custom_components.better_thermostat.climate.dt_util") as mock_dt:
-            now = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+            now = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
             mock_dt.utcnow.return_value = now
             await self._call(mock_bt)
 
@@ -354,7 +356,7 @@ class TestCalculateHeatingPower:
     @pytest.mark.asyncio
     async def test_heating_stop_sets_end(self, mock_bt):
         """Transition from HEATING → IDLE sets end_temp/timestamp."""
-        now = datetime(2025, 1, 1, 12, 10, 0, tzinfo=timezone.utc)
+        now = datetime(2025, 1, 1, 12, 10, 0, tzinfo=UTC)
         mock_bt.cur_temp = 22.0
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
@@ -378,7 +380,7 @@ class TestCalculateHeatingPower:
     @pytest.mark.asyncio
     async def test_peak_tracking(self, mock_bt):
         """Temperature still rising after heating stopped → end_temp updated."""
-        base = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        base = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         mock_bt.cur_temp = 22.5  # above previous end_temp
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
@@ -402,7 +404,7 @@ class TestCalculateHeatingPower:
     @pytest.mark.asyncio
     async def test_finalization_on_temp_drop(self, mock_bt):
         """Temperature falls below peak → cycle finalized, power updated."""
-        base = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        base = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         mock_bt.cur_temp = 21.8  # below peak of 22.5
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
@@ -432,7 +434,7 @@ class TestCalculateHeatingPower:
     @pytest.mark.asyncio
     async def test_finalization_on_timeout(self, mock_bt):
         """30-minute timeout triggers finalization even without temp drop."""
-        base = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        base = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         mock_bt.cur_temp = 22.5  # still at peak (no drop)
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
@@ -458,7 +460,7 @@ class TestCalculateHeatingPower:
     @pytest.mark.asyncio
     async def test_short_cycle_discarded(self, mock_bt):
         """Cycles shorter than 1 minute are discarded."""
-        base = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        base = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         mock_bt.cur_temp = 21.8
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
@@ -484,7 +486,7 @@ class TestCalculateHeatingPower:
     @pytest.mark.asyncio
     async def test_negative_temp_diff_discarded(self, mock_bt):
         """Negative temperature diff (end < start) is discarded."""
-        base = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        base = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         mock_bt.cur_temp = 19.0  # below peak → finalize
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
@@ -510,8 +512,10 @@ class TestCalculateHeatingPower:
     @pytest.mark.asyncio
     async def test_ema_smoothing(self, mock_bt):
         """EMA: new = old * (1-alpha) + rate * alpha."""
-        base = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
-        mock_bt.cur_temp = 21.8  # above tol threshold (21.5) so action=IDLE, below end_temp
+        base = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
+        mock_bt.cur_temp = (
+            21.8  # above tol threshold (21.5) so action=IDLE, below end_temp
+        )
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
         mock_bt._tolerance_last_action = HVACAction.IDLE
@@ -539,7 +543,7 @@ class TestCalculateHeatingPower:
     @pytest.mark.asyncio
     async def test_outdoor_normalization(self, mock_bt):
         """Outdoor sensor present → normalized_power is calculated."""
-        base = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        base = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         mock_bt.cur_temp = 21.8  # above tol threshold so action=IDLE, below end_temp
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
@@ -569,7 +573,7 @@ class TestCalculateHeatingPower:
     @pytest.mark.asyncio
     async def test_min_max_clamping(self, mock_bt):
         """Power is clamped to [MIN_HEATING_POWER, MAX_HEATING_POWER]."""
-        base = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        base = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         mock_bt.cur_temp = 21.8  # above tol threshold so action=IDLE, below end_temp
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
@@ -596,7 +600,7 @@ class TestCalculateHeatingPower:
     @pytest.mark.asyncio
     async def test_cycle_telemetry_appended(self, mock_bt):
         """Finalized cycle appends to heating_cycles deque."""
-        base = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        base = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         mock_bt.cur_temp = 21.8  # above tol threshold so action=IDLE, below end_temp
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
@@ -634,6 +638,7 @@ class TestCalculateHeatLoss:
 
     @pytest.mark.asyncio
     async def test_cur_temp_none_early_return(self, mock_bt):
+        """Skip update when current temp is None."""
         mock_bt.cur_temp = None
         await self._call(mock_bt)
         assert mock_bt._loss_tracker.start_temp is None
@@ -643,15 +648,15 @@ class TestCalculateHeatLoss:
         """Window open → all tracking values reset."""
         mock_bt.window_open = True
         mock_bt._loss_tracker.start_temp = 21.0
-        mock_bt._loss_tracker.start_ts = datetime(2025, 1, 1, tzinfo=timezone.utc)
+        mock_bt._loss_tracker.start_ts = datetime(2025, 1, 1, tzinfo=UTC)
         mock_bt._loss_tracker.end_temp = 20.5
-        mock_bt._loss_tracker.end_ts = datetime(2025, 1, 1, tzinfo=timezone.utc)
+        mock_bt._loss_tracker.end_ts = datetime(2025, 1, 1, tzinfo=UTC)
         mock_bt._should_heat_with_tolerance = lambda prev, tol: (
             BetterThermostat._should_heat_with_tolerance(mock_bt, prev, tol)
         )
 
         with patch("custom_components.better_thermostat.climate.dt_util") as mock_dt:
-            mock_dt.utcnow.return_value = datetime(2025, 1, 1, 12, 0, tzinfo=timezone.utc)
+            mock_dt.utcnow.return_value = datetime(2025, 1, 1, 12, 0, tzinfo=UTC)
             await self._call(mock_bt)
 
         assert mock_bt._loss_tracker.start_temp is None
@@ -670,7 +675,7 @@ class TestCalculateHeatLoss:
         )
 
         with patch("custom_components.better_thermostat.climate.dt_util") as mock_dt:
-            now = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+            now = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
             mock_dt.utcnow.return_value = now
             await self._call(mock_bt)
 
@@ -680,7 +685,7 @@ class TestCalculateHeatLoss:
     @pytest.mark.asyncio
     async def test_tracks_lowest_temp(self, mock_bt):
         """While idle, end_temp tracks the lowest temperature."""
-        now = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        now = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         # cur_temp must yield IDLE (>= target - tol) AND be below loss_end_temp
         mock_bt.cur_temp = 21.6
         mock_bt.bt_target_temp = 22.0
@@ -700,7 +705,7 @@ class TestCalculateHeatLoss:
     @pytest.mark.asyncio
     async def test_finalization_on_heating_restart(self, mock_bt):
         """Heating starts again → cycle finalized, heat_loss updated."""
-        base = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        base = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         # Set up a completed idle period
         mock_bt.cur_temp = 20.0  # below target-tol → HEATING
         mock_bt.bt_target_temp = 22.0
@@ -727,7 +732,7 @@ class TestCalculateHeatLoss:
     @pytest.mark.asyncio
     async def test_short_loss_cycle_discarded(self, mock_bt):
         """Loss cycles shorter than 1 minute are discarded."""
-        base = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        base = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         mock_bt.cur_temp = 20.0
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
@@ -751,7 +756,7 @@ class TestCalculateHeatLoss:
     @pytest.mark.asyncio
     async def test_ema_smoothing(self, mock_bt):
         """EMA smoothing applied to heat_loss_rate."""
-        base = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        base = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         mock_bt.cur_temp = 20.0
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
@@ -776,7 +781,7 @@ class TestCalculateHeatLoss:
     @pytest.mark.asyncio
     async def test_min_max_clamping(self, mock_bt):
         """Loss rate is clamped to [MIN_HEAT_LOSS, MAX_HEAT_LOSS]."""
-        base = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        base = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         mock_bt.cur_temp = 20.0
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
@@ -801,7 +806,7 @@ class TestCalculateHeatLoss:
     @pytest.mark.asyncio
     async def test_loss_cycle_telemetry(self, mock_bt):
         """Finalized loss cycle appends telemetry to loss_cycles deque."""
-        base = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        base = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         mock_bt.cur_temp = 20.0
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
@@ -959,8 +964,7 @@ class TestAsyncSetTemperature:
         mock_bt.min_temp = mock_bt.bt_min_temp
         mock_bt.max_temp = mock_bt.bt_max_temp
         await self._call(
-            mock_bt,
-            **{ATTR_TARGET_TEMP_LOW: 20.0, ATTR_TARGET_TEMP_HIGH: 26.0},
+            mock_bt, **{ATTR_TARGET_TEMP_LOW: 20.0, ATTR_TARGET_TEMP_HIGH: 26.0}
         )
         assert mock_bt.bt_target_temp == 20.0
         assert mock_bt.bt_target_cooltemp == 26.0

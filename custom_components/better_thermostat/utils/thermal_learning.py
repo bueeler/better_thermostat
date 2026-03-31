@@ -7,10 +7,10 @@ via frozen *Result* dataclasses.
 
 from __future__ import annotations
 
-import logging
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -38,6 +38,7 @@ _CYCLES_MAXLEN: int = 50
 # Pure helpers
 # ---------------------------------------------------------------------------
 
+
 def ema_smooth(old: float, new: float, alpha: float) -> float:
     """Exponential moving average: ``old * (1 - alpha) + new * alpha``."""
     return old * (1.0 - alpha) + new * alpha
@@ -53,9 +54,7 @@ def clamp(value: float, lo: float, hi: float) -> float:
 
 
 def compute_weight_factor(
-    target_temp: float | None,
-    min_target: float,
-    max_target: float,
+    target_temp: float | None, min_target: float, max_target: float
 ) -> float:
     """Relative-position weight within the observed target-temp range.
 
@@ -69,10 +68,7 @@ def compute_weight_factor(
     return clamp(0.5 + relative_pos, 0.5, 1.5)
 
 
-def compute_env_factor(
-    outdoor_temp: float | None,
-    target_temp: float | None,
-) -> float:
+def compute_env_factor(outdoor_temp: float | None, target_temp: float | None) -> float:
     """Environmental factor based on outdoor-to-setpoint gradient.
 
     Returns a factor in ``[0.7, 1.3]``.  Without outdoor data returns 1.0.
@@ -86,6 +82,7 @@ def compute_env_factor(
 # ---------------------------------------------------------------------------
 # Result dataclasses (frozen – no mutation after creation)
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True, slots=True)
 class CycleResult:
@@ -114,6 +111,7 @@ class HeatLossUpdate:
 # ---------------------------------------------------------------------------
 # HeatingPowerTracker
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class HeatingPowerTracker:
@@ -260,7 +258,9 @@ class HeatingPowerTracker:
 
             heating_rate = round(temp_diff / duration_min, 4)
 
-            alpha = clamp(_BASE_ALPHA * weight_factor * env_factor, _ALPHA_MIN, _ALPHA_MAX)
+            alpha = clamp(
+                _BASE_ALPHA * weight_factor * env_factor, _ALPHA_MIN, _ALPHA_MAX
+            )
 
             old_power = self.heating_power
             unbounded = ema_smooth(old_power, heating_rate, alpha)
@@ -305,7 +305,9 @@ class HeatingPowerTracker:
                     "start": self.start_ts.isoformat() if self.start_ts else None,
                     "end": self.end_ts.isoformat() if self.end_ts else None,
                     "temp_start": (
-                        round(self.start_temp, 2) if self.start_temp is not None else None
+                        round(self.start_temp, 2)
+                        if self.start_temp is not None
+                        else None
                     ),
                     "temp_peak": (
                         round(self.end_temp, 2) if self.end_temp is not None else None
@@ -344,6 +346,7 @@ class HeatingPowerTracker:
 # ---------------------------------------------------------------------------
 # HeatLossTracker
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class HeatLossTracker:
@@ -418,7 +421,9 @@ class HeatLossTracker:
         loss_changed = False
 
         if self.end_temp is not None and self.start_ts is not None:
-            temp_drop = self.start_temp - self.end_temp if self.start_temp is not None else 0.0
+            temp_drop = (
+                self.start_temp - self.end_temp if self.start_temp is not None else 0.0
+            )
             if self.end_ts is not None and self.start_ts is not None:
                 duration_min = (self.end_ts - self.start_ts).total_seconds() / 60.0
             else:
@@ -467,10 +472,14 @@ class HeatLossTracker:
                         "start": self.start_ts.isoformat() if self.start_ts else None,
                         "end": self.end_ts.isoformat() if self.end_ts else None,
                         "temp_start": (
-                            round(self.start_temp, 2) if self.start_temp is not None else None
+                            round(self.start_temp, 2)
+                            if self.start_temp is not None
+                            else None
                         ),
                         "temp_min": (
-                            round(self.end_temp, 2) if self.end_temp is not None else None
+                            round(self.end_temp, 2)
+                            if self.end_temp is not None
+                            else None
                         ),
                         "rate": loss_rate,
                     }

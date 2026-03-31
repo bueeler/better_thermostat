@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass, field
+import logging
 
 from homeassistant.components.climate.const import HVACAction, HVACMode
 
@@ -61,7 +61,7 @@ def should_heat_with_tolerance(
     tolerance: float,
     previous_action: HVACAction | None,
 ) -> bool:
-    """Hysteresis decision: should we heat right now?
+    """Determine whether heating should be active based on hysteresis.
 
     Band: ``[target - tolerance, target)``
     * Start heating when ``cur_temp < target - tolerance``.
