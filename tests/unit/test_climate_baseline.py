@@ -22,6 +22,7 @@ from homeassistant.const import ATTR_TEMPERATURE
 import pytest
 
 from custom_components.better_thermostat.climate import BetterThermostat
+from custom_components.better_thermostat.utils.hvac_action import ToleranceHysteresis
 from custom_components.better_thermostat.utils.thermal_learning import (
     HeatingPowerTracker,
     HeatLossTracker,
@@ -52,8 +53,7 @@ def mock_bt():
     bt.window_open = False
     bt.ignore_states = False
     # Hysteresis
-    bt._tolerance_last_action = HVACAction.IDLE
-    bt._tolerance_hold_active = False
+    bt._hysteresis = ToleranceHysteresis()
     # Thermal trackers (real objects – new thin-wrapper methods delegate to these)
     bt._heating_tracker = HeatingPowerTracker(
         heating_power=0.05, min_target=18.0, max_target=24.0
@@ -108,6 +108,13 @@ def mock_bt():
         BetterThermostat._should_heat_with_tolerance(bt, prev, tol)
     )
     bt._compute_hvac_action = lambda: BetterThermostat._compute_hvac_action(bt)
+    bt._compute_hvac_action_pure = lambda: BetterThermostat._compute_hvac_action_pure(
+        bt
+    )
+    bt._build_trv_snapshots = lambda: BetterThermostat._build_trv_snapshots(bt)
+    bt._commit_hvac_action = lambda result: BetterThermostat._commit_hvac_action(
+        bt, result
+    )
     bt._get_outdoor_temp = lambda: BetterThermostat._get_outdoor_temp(bt)
     return bt
 
@@ -226,14 +233,14 @@ class TestComputeHvacAction:
         mock_bt.cur_temp = 21.0
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
-        mock_bt._tolerance_last_action = HVACAction.IDLE
+        mock_bt._hysteresis.last_action = HVACAction.IDLE
         assert self._call(mock_bt) == HVACAction.HEATING
 
     def test_heat_mode_cur_at_target(self, mock_bt):
         """HEAT mode, cur >= target → IDLE."""
         mock_bt.cur_temp = 22.0
         mock_bt.bt_target_temp = 22.0
-        mock_bt._tolerance_last_action = HVACAction.IDLE
+        mock_bt._hysteresis.last_action = HVACAction.IDLE
         assert self._call(mock_bt) == HVACAction.IDLE
 
     def test_heat_cool_cooling_above_cooltemp(self, mock_bt):
@@ -250,7 +257,7 @@ class TestComputeHvacAction:
         """TRV reports hvac_action='heating' → override to HEATING."""
         mock_bt.cur_temp = 22.0  # at target → base decision is IDLE
         mock_bt.bt_target_temp = 22.0
-        mock_bt._tolerance_last_action = HVACAction.IDLE
+        mock_bt._hysteresis.last_action = HVACAction.IDLE
         mock_bt.real_trvs = {"climate.trv1": {"hvac_action": "heating"}}
         assert self._call(mock_bt) == HVACAction.HEATING
 
@@ -258,7 +265,7 @@ class TestComputeHvacAction:
         """TRV valve_position=50 → override to HEATING."""
         mock_bt.cur_temp = 22.0
         mock_bt.bt_target_temp = 22.0
-        mock_bt._tolerance_last_action = HVACAction.IDLE
+        mock_bt._hysteresis.last_action = HVACAction.IDLE
         mock_bt.real_trvs = {"climate.trv1": {"valve_position": 50}}
         assert self._call(mock_bt) == HVACAction.HEATING
 
@@ -266,7 +273,7 @@ class TestComputeHvacAction:
         """TRV last_valve_percent=0.8 (0-1 range) → normalized to 80% → HEATING."""
         mock_bt.cur_temp = 22.0
         mock_bt.bt_target_temp = 22.0
-        mock_bt._tolerance_last_action = HVACAction.IDLE
+        mock_bt._hysteresis.last_action = HVACAction.IDLE
         mock_bt.real_trvs = {"climate.trv1": {"last_valve_percent": 0.8}}
         assert self._call(mock_bt) == HVACAction.HEATING
 
@@ -274,7 +281,7 @@ class TestComputeHvacAction:
         """ignore_states=True → TRV override skipped, returns IDLE."""
         mock_bt.cur_temp = 22.0
         mock_bt.bt_target_temp = 22.0
-        mock_bt._tolerance_last_action = HVACAction.IDLE
+        mock_bt._hysteresis.last_action = HVACAction.IDLE
         mock_bt.ignore_states = True
         mock_bt.real_trvs = {"climate.trv1": {"hvac_action": "heating"}}
         assert self._call(mock_bt) == HVACAction.IDLE
@@ -283,7 +290,7 @@ class TestComputeHvacAction:
         """ignore_trv_states=True on specific TRV → that TRV is skipped."""
         mock_bt.cur_temp = 22.0
         mock_bt.bt_target_temp = 22.0
-        mock_bt._tolerance_last_action = HVACAction.IDLE
+        mock_bt._hysteresis.last_action = HVACAction.IDLE
         mock_bt.real_trvs = {
             "climate.trv1": {"hvac_action": "heating", "ignore_trv_states": True}
         }
@@ -293,20 +300,20 @@ class TestComputeHvacAction:
         """Hysteresis state uses tolerance decision, not TRV-overridden action."""
         mock_bt.cur_temp = 22.0  # at target → tolerance says IDLE
         mock_bt.bt_target_temp = 22.0
-        mock_bt._tolerance_last_action = HVACAction.IDLE
+        mock_bt._hysteresis.last_action = HVACAction.IDLE
         mock_bt.real_trvs = {"climate.trv1": {"hvac_action": "heating"}}
         self._call(mock_bt)
         # Tolerance last action should be IDLE (tolerance decision), not HEATING
-        assert mock_bt._tolerance_last_action == HVACAction.IDLE
+        assert mock_bt._hysteresis.last_action == HVACAction.IDLE
 
     def test_tolerance_hold_active_set(self, mock_bt):
         """_tolerance_hold_active is True when tolerance says no-heat but not cooling."""
         mock_bt.cur_temp = 21.8  # in band: target-tol(21.5) < cur < target(22.0)
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
-        mock_bt._tolerance_last_action = HVACAction.IDLE
+        mock_bt._hysteresis.last_action = HVACAction.IDLE
         self._call(mock_bt)
-        assert mock_bt._tolerance_hold_active is True
+        assert mock_bt._hysteresis.hold_active is True
 
 
 # ===========================================================================
@@ -334,7 +341,7 @@ class TestCalculateHeatingPower:
         mock_bt.cur_temp = 20.0
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
-        mock_bt._tolerance_last_action = HVACAction.IDLE
+        mock_bt._hysteresis.last_action = HVACAction.IDLE
         mock_bt.old_attr_hvac_action = HVACAction.IDLE
         mock_bt._heating_tracker._prev_action = HVACAction.IDLE
         # Make _compute_hvac_action return HEATING
@@ -360,7 +367,7 @@ class TestCalculateHeatingPower:
         mock_bt.cur_temp = 22.0
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
-        mock_bt._tolerance_last_action = HVACAction.HEATING
+        mock_bt._hysteresis.last_action = HVACAction.HEATING
         mock_bt.old_attr_hvac_action = HVACAction.HEATING
         mock_bt._heating_tracker._prev_action = HVACAction.HEATING
         mock_bt._heating_tracker.start_temp = 20.0
@@ -384,7 +391,7 @@ class TestCalculateHeatingPower:
         mock_bt.cur_temp = 22.5  # above previous end_temp
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
-        mock_bt._tolerance_last_action = HVACAction.IDLE
+        mock_bt._hysteresis.last_action = HVACAction.IDLE
         mock_bt.old_attr_hvac_action = HVACAction.IDLE
         mock_bt._heating_tracker._prev_action = HVACAction.IDLE
         mock_bt._heating_tracker.start_temp = 20.0
@@ -408,7 +415,7 @@ class TestCalculateHeatingPower:
         mock_bt.cur_temp = 21.8  # below peak of 22.5
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
-        mock_bt._tolerance_last_action = HVACAction.IDLE
+        mock_bt._hysteresis.last_action = HVACAction.IDLE
         mock_bt.old_attr_hvac_action = HVACAction.IDLE
         mock_bt._heating_tracker._prev_action = HVACAction.IDLE
         mock_bt._heating_tracker.start_temp = 20.0
@@ -438,7 +445,7 @@ class TestCalculateHeatingPower:
         mock_bt.cur_temp = 22.5  # still at peak (no drop)
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
-        mock_bt._tolerance_last_action = HVACAction.IDLE
+        mock_bt._hysteresis.last_action = HVACAction.IDLE
         mock_bt.old_attr_hvac_action = HVACAction.IDLE
         mock_bt._heating_tracker._prev_action = HVACAction.IDLE
         mock_bt._heating_tracker.start_temp = 20.0
@@ -464,7 +471,7 @@ class TestCalculateHeatingPower:
         mock_bt.cur_temp = 21.8
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
-        mock_bt._tolerance_last_action = HVACAction.IDLE
+        mock_bt._hysteresis.last_action = HVACAction.IDLE
         mock_bt.old_attr_hvac_action = HVACAction.IDLE
         mock_bt._heating_tracker._prev_action = HVACAction.IDLE
         mock_bt._heating_tracker.start_temp = 20.0
@@ -490,7 +497,7 @@ class TestCalculateHeatingPower:
         mock_bt.cur_temp = 19.0  # below peak → finalize
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
-        mock_bt._tolerance_last_action = HVACAction.IDLE
+        mock_bt._hysteresis.last_action = HVACAction.IDLE
         mock_bt.old_attr_hvac_action = HVACAction.IDLE
         mock_bt._heating_tracker._prev_action = HVACAction.IDLE
         mock_bt._heating_tracker.start_temp = 21.0
@@ -518,7 +525,7 @@ class TestCalculateHeatingPower:
         )
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
-        mock_bt._tolerance_last_action = HVACAction.IDLE
+        mock_bt._hysteresis.last_action = HVACAction.IDLE
         mock_bt.old_attr_hvac_action = HVACAction.IDLE
         mock_bt._heating_tracker._prev_action = HVACAction.IDLE
         mock_bt._heating_tracker.start_temp = 20.0
@@ -547,7 +554,7 @@ class TestCalculateHeatingPower:
         mock_bt.cur_temp = 21.8  # above tol threshold so action=IDLE, below end_temp
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
-        mock_bt._tolerance_last_action = HVACAction.IDLE
+        mock_bt._hysteresis.last_action = HVACAction.IDLE
         mock_bt.old_attr_hvac_action = HVACAction.IDLE
         mock_bt._heating_tracker._prev_action = HVACAction.IDLE
         mock_bt._heating_tracker.start_temp = 20.0
@@ -577,7 +584,7 @@ class TestCalculateHeatingPower:
         mock_bt.cur_temp = 21.8  # above tol threshold so action=IDLE, below end_temp
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
-        mock_bt._tolerance_last_action = HVACAction.IDLE
+        mock_bt._hysteresis.last_action = HVACAction.IDLE
         mock_bt.old_attr_hvac_action = HVACAction.IDLE
         mock_bt._heating_tracker._prev_action = HVACAction.IDLE
         mock_bt._heating_tracker.start_temp = 20.0
@@ -604,7 +611,7 @@ class TestCalculateHeatingPower:
         mock_bt.cur_temp = 21.8  # above tol threshold so action=IDLE, below end_temp
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
-        mock_bt._tolerance_last_action = HVACAction.IDLE
+        mock_bt._hysteresis.last_action = HVACAction.IDLE
         mock_bt.old_attr_hvac_action = HVACAction.IDLE
         mock_bt._heating_tracker._prev_action = HVACAction.IDLE
         mock_bt._heating_tracker.start_temp = 20.0
@@ -668,7 +675,7 @@ class TestCalculateHeatLoss:
         mock_bt.cur_temp = 22.0
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
-        mock_bt._tolerance_last_action = HVACAction.IDLE
+        mock_bt._hysteresis.last_action = HVACAction.IDLE
         mock_bt._loss_tracker.start_temp = None
         mock_bt._should_heat_with_tolerance = lambda prev, tol: (
             BetterThermostat._should_heat_with_tolerance(mock_bt, prev, tol)
@@ -690,7 +697,7 @@ class TestCalculateHeatLoss:
         mock_bt.cur_temp = 21.6
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5  # threshold = 21.5, 21.6 >= 21.5 → IDLE
-        mock_bt._tolerance_last_action = HVACAction.IDLE
+        mock_bt._hysteresis.last_action = HVACAction.IDLE
         mock_bt._loss_tracker.start_temp = 22.0
         mock_bt._loss_tracker.start_ts = now - timedelta(minutes=10)
         mock_bt._loss_tracker.end_temp = 21.8  # current (21.6) is lower
@@ -710,7 +717,7 @@ class TestCalculateHeatLoss:
         mock_bt.cur_temp = 20.0  # below target-tol → HEATING
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
-        mock_bt._tolerance_last_action = HVACAction.IDLE
+        mock_bt._hysteresis.last_action = HVACAction.IDLE
         mock_bt._loss_tracker.start_temp = 22.0
         mock_bt._loss_tracker.start_ts = base - timedelta(minutes=10)
         mock_bt._loss_tracker.end_temp = 20.5
@@ -736,7 +743,7 @@ class TestCalculateHeatLoss:
         mock_bt.cur_temp = 20.0
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
-        mock_bt._tolerance_last_action = HVACAction.IDLE
+        mock_bt._hysteresis.last_action = HVACAction.IDLE
         mock_bt._loss_tracker.start_temp = 22.0
         mock_bt._loss_tracker.start_ts = base - timedelta(seconds=30)
         mock_bt._loss_tracker.end_temp = 21.0
@@ -760,7 +767,7 @@ class TestCalculateHeatLoss:
         mock_bt.cur_temp = 20.0
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
-        mock_bt._tolerance_last_action = HVACAction.IDLE
+        mock_bt._hysteresis.last_action = HVACAction.IDLE
         mock_bt._loss_tracker.start_temp = 22.0
         mock_bt._loss_tracker.start_ts = base - timedelta(minutes=10)
         mock_bt._loss_tracker.end_temp = 20.0  # 2°C drop in 10 min
@@ -785,7 +792,7 @@ class TestCalculateHeatLoss:
         mock_bt.cur_temp = 20.0
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
-        mock_bt._tolerance_last_action = HVACAction.IDLE
+        mock_bt._hysteresis.last_action = HVACAction.IDLE
         mock_bt._loss_tracker.start_temp = 22.0
         mock_bt._loss_tracker.start_ts = base - timedelta(minutes=5)
         mock_bt._loss_tracker.end_temp = 20.0
@@ -810,7 +817,7 @@ class TestCalculateHeatLoss:
         mock_bt.cur_temp = 20.0
         mock_bt.bt_target_temp = 22.0
         mock_bt.tolerance = 0.5
-        mock_bt._tolerance_last_action = HVACAction.IDLE
+        mock_bt._hysteresis.last_action = HVACAction.IDLE
         mock_bt._loss_tracker.start_temp = 22.0
         mock_bt._loss_tracker.start_ts = base - timedelta(minutes=10)
         mock_bt._loss_tracker.end_temp = 20.5

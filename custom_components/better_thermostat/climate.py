@@ -2087,8 +2087,6 @@ class BetterThermostat(ClimateEntity, RestoreEntity, ABC):
             outdoor_temp=outdoor_temp,
         )
 
-        self._commit_hvac_action(result)
-
         if result.action_changed:
             self.old_attr_hvac_action = result.current_action
             self.attr_hvac_action = result.current_action
@@ -2471,7 +2469,9 @@ class BetterThermostat(ClimateEntity, RestoreEntity, ABC):
 
     def _compute_hvac_action(self):
         """Return the current HVAC action enum value."""
-        return self._compute_hvac_action_pure().action
+        result = self._compute_hvac_action_pure()
+        self._commit_hvac_action(result)
+        return result.action
 
     def _compute_hvac_action_pure(self):
         """Compute current HVAC action."""
