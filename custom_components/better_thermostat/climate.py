@@ -492,21 +492,19 @@ class BetterThermostat(ClimateEntity, RestoreEntity, ABC):
         self.heating_start_timestamp = None
         self.heating_end_temp = None
         self.heating_end_timestamp = None
+        # Thermal learning trackers (state machines for heating power / heat loss)
+        # Must be initialised before property-based assignments below.
+        self._heating_tracker = HeatingPowerTracker()
+        self._loss_tracker = HeatLossTracker()
         # Heat loss tracking (idle cooling rate)
         self.loss_start_temp = None
         self.loss_start_timestamp = None
         self.loss_end_temp = None
         self.loss_end_timestamp = None
         self.heat_loss_rate = 0.01
-        self.last_heat_loss_stats = deque(maxlen=10)
-        self.loss_cycles = deque(maxlen=50)
-        self.heating_cycles = deque(maxlen=50)
         self._loss_last_action = None
         self._tolerance_last_action = HVACAction.IDLE
         self._tolerance_hold_active = False
-        # Thermal learning trackers (state machines for heating power / heat loss)
-        self._heating_tracker = HeatingPowerTracker()
-        self._loss_tracker = HeatLossTracker()
         self._async_unsub_state_changed = None
         self.all_entities = []
         self.devices_states = {}
