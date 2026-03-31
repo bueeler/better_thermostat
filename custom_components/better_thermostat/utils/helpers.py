@@ -10,6 +10,7 @@ from typing import Any
 from homeassistant.components.climate.const import HVACMode
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.entity_registry import async_entries_for_config_entry
+from homeassistant.util import dt as dt_util
 
 from custom_components.better_thermostat.utils.const import (
     CONF_HEAT_AUTO_SWAPPED,
@@ -401,7 +402,7 @@ def convert_time(time_string):
             If the time string is not a valid time.
     """
     try:
-        _current_time = datetime.now()
+        _current_time = dt_util.now()
         _get_hours_minutes = datetime.strptime(time_string, "%H:%M")
         return _current_time.replace(
             hour=_get_hours_minutes.hour,

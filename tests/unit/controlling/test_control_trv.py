@@ -88,7 +88,7 @@ def _make_mock_self(trv_state=None, trv_attrs=None, real_trvs=None, **kwargs):
     mock_self.bt_target_temp = kwargs.pop("bt_target_temp", 22.0)
     mock_self.context = kwargs.pop("context", None)
     mock_self.ignore_states = kwargs.pop("ignore_states", False)
-    mock_self.task_manager = Mock(create_task=Mock())
+    mock_self.task_manager = Mock(create_task=Mock(side_effect=_close_coro))
 
     if real_trvs is None:
         real_trvs = {"climate.trv1": _default_trv_config()}

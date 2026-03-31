@@ -5,11 +5,12 @@ mode synchronisation, target-temperature adoption, control-queue triggering,
 and the convert_inbound_states / convert_outbound_states helpers.
 """
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from homeassistant.components.climate.const import HVACMode
 from homeassistant.core import State
+from homeassistant.util import dt as dt_util
 import pytest
 
 from custom_components.better_thermostat.events.trv import (
@@ -52,7 +53,7 @@ def mock_bt():
     bt.cooler_entity_id = None
     bt.ignore_states = False
     bt.context = MagicMock()  # unique context so != event.context
-    bt.last_internal_sensor_change = datetime.now() - timedelta(seconds=60)
+    bt.last_internal_sensor_change = dt_util.now() - timedelta(seconds=60)
     bt.async_write_ha_state = MagicMock()
 
     bt.all_trvs = [{"advanced": {CONF_HOMEMATICIP: False}}]
@@ -234,7 +235,7 @@ class TestInternalTemperatureChange:
     @pytest.mark.asyncio
     async def test_temp_change_respects_time_diff(self, mock_bt):
         """Changes within 5 s of the last internal sensor change are skipped."""
-        mock_bt.last_internal_sensor_change = datetime.now() - timedelta(seconds=2)
+        mock_bt.last_internal_sensor_change = dt_util.now() - timedelta(seconds=2)
         trv_state = _make_state(attributes={"current_temperature": 20.0})
         mock_bt.hass.states.get.return_value = trv_state
         mock_bt.real_trvs[ENTITY_ID]["current_temperature"] = 18.0
@@ -256,7 +257,7 @@ class TestInternalTemperatureChange:
     async def test_temp_change_homematicip_600s(self, mock_bt):
         """HomematicIP uses a 600 s guard instead of 5 s."""
         mock_bt.all_trvs = [{"advanced": {CONF_HOMEMATICIP: True}}]
-        mock_bt.last_internal_sensor_change = datetime.now() - timedelta(seconds=30)
+        mock_bt.last_internal_sensor_change = dt_util.now() - timedelta(seconds=30)
         trv_state = _make_state(attributes={"current_temperature": 20.0})
         mock_bt.hass.states.get.return_value = trv_state
         mock_bt.real_trvs[ENTITY_ID]["current_temperature"] = 18.0

@@ -3,7 +3,7 @@
 from abc import ABC
 import asyncio
 from collections import deque
-from datetime import datetime, timedelta
+from datetime import timedelta
 from functools import cached_property
 import json
 import logging
@@ -417,7 +417,7 @@ class BetterThermostat(ClimateEntity, RestoreEntity, ABC):
         self._hvac_list = [HVACMode.HEAT, HVACMode.OFF]
         self._preset_mode = PRESET_NONE
         self.map_on_hvac_mode = HVACMode.HEAT
-        self.next_valve_maintenance = datetime.now() + timedelta(
+        self.next_valve_maintenance = dt_util.now() + timedelta(
             hours=randint(1, 24 * 5)
         )
         self.cur_temp = None
@@ -442,9 +442,9 @@ class BetterThermostat(ClimateEntity, RestoreEntity, ABC):
         self.ignore_states = False
         self.last_dampening_timestamp = None
         self.version = VERSION
-        self.last_change = datetime.now() - timedelta(hours=2)
-        self.last_external_sensor_change = datetime.now() - timedelta(hours=2)
-        self.last_internal_sensor_change = datetime.now() - timedelta(hours=2)
+        self.last_change = dt_util.now() - timedelta(hours=2)
+        self.last_external_sensor_change = dt_util.now() - timedelta(hours=2)
+        self.last_internal_sensor_change = dt_util.now() - timedelta(hours=2)
         self._temp_lock = asyncio.Lock()
         self.bt_update_lock = False
         self.startup_running = True
@@ -723,8 +723,7 @@ class BetterThermostat(ClimateEntity, RestoreEntity, ABC):
                     All parameters are piped.
             """
             self.context = Context()
-            loop = asyncio.get_event_loop()
-            loop.create_task(self.startup())
+            self.hass.async_create_task(self.startup())
 
         if self.hass.state == CoreState.running:
             _async_startup()
@@ -893,7 +892,7 @@ class BetterThermostat(ClimateEntity, RestoreEntity, ABC):
         if is_entity_available(self.hass, self.window_id):
             self.hass.async_create_task(trigger_window_change(self, event))
 
-    async def _tigger_cooler_change(self, event):
+    async def _trigger_cooler_change(self, event):
         _check = await check_critical_entities(self)
         if _check is False:
             return
@@ -1374,7 +1373,7 @@ class BetterThermostat(ClimateEntity, RestoreEntity, ABC):
                 _temp_bt_hvac_mode = max(
                     set(current_hvac_modes), key=current_hvac_modes.count
                 )
-                if _temp_bt_hvac_mode is not HVACMode.OFF:
+                if _temp_bt_hvac_mode != HVACMode.OFF:
                     self.bt_hvac_mode = HVACMode.HEAT
                 else:
                     self.bt_hvac_mode = HVACMode.OFF
@@ -1724,16 +1723,6 @@ class BetterThermostat(ClimateEntity, RestoreEntity, ABC):
                     "better_thermostat %s: valve maintenance tick skipped (no TRV enabled)",
                     self.device_name,
                 )
-            _LOGGER.debug(
-                "better_thermostat %s: valve maintenance tick enabled (5min), first run at %s",
-                self.device_name,
-                self.next_valve_maintenance,
-            )
-
-        _LOGGER.debug(
-            "better_thermostat %s: valve maintenance tick skipped (no TRV enabled)",
-            self.device_name,
-        )
 
         self.async_on_remove(
             async_track_state_change_event(
@@ -1762,7 +1751,7 @@ class BetterThermostat(ClimateEntity, RestoreEntity, ABC):
         if self.cooler_entity_id is not None:
             self.async_on_remove(
                 async_track_state_change_event(
-                    self.hass, [self.cooler_entity_id], self._tigger_cooler_change
+                    self.hass, [self.cooler_entity_id], self._trigger_cooler_change
                 )
             )
         # Sende initial sofort einen Keepalive, damit TRVs nicht bis zum ersten 30min-Tick warten müssen
@@ -1800,7 +1789,7 @@ class BetterThermostat(ClimateEntity, RestoreEntity, ABC):
             return
 
         # Skip if already running or not due
-        now = datetime.now()
+        now = dt_util.now()
         if self.in_maintenance:
             return
         try:
@@ -2584,6 +2573,7 @@ class BetterThermostat(ClimateEntity, RestoreEntity, ABC):
                     self.device_name,
                     hvac_mode_norm,
                 )
+
         if ATTR_TEMPERATURE in kwargs:
             _new_setpoint = convert_to_float(
                 str(kwargs.get(ATTR_TEMPERATURE, None)),
@@ -2605,18 +2595,32 @@ class BetterThermostat(ClimateEntity, RestoreEntity, ABC):
                 "controlling.settarget_temperature_high()",
             )
 
-        if _new_setpoint is None and _new_setpointlow is None:
+        if (
+            _new_setpoint is None
+            and _new_setpointlow is None
+            and _new_setpointhigh is None
+        ):
             _LOGGER.debug(
-                "better_thermostat %s: async_set_temperature kwargs=%s, current preset=%s, hvac_mode=%s",
+                "better_thermostat %s: received a new setpoint from HA, but temperature attribute was not set, ignoring",
                 self.device_name,
-                kwargs,
-                self._preset_mode,
-                self.bt_hvac_mode,
+            )
+            return
+
+        # Validate against min/max temps
+        if _new_setpoint is not None:
+            _new_setpoint = min(self.max_temp, max(self.min_temp, _new_setpoint))
+        if _new_setpointlow is not None:
+            _new_setpointlow = min(self.max_temp, max(self.min_temp, _new_setpointlow))
+        if _new_setpointhigh is not None:
+            _new_setpointhigh = min(
+                self.max_temp, max(self.min_temp, _new_setpointhigh)
             )
 
-            _new_setpoint = None
-            _new_setpointlow = None
-            _new_setpointhigh = None
+        # Preserve explicit 0.0 values (avoid Python truthiness bug)
+        if _new_setpoint is not None:
+            self.bt_target_temp = _new_setpoint
+        elif _new_setpointlow is not None:
+            self.bt_target_temp = _new_setpointlow
 
         if _new_setpointhigh is not None:
             self.bt_target_cooltemp = _new_setpointhigh
@@ -2640,162 +2644,51 @@ class BetterThermostat(ClimateEntity, RestoreEntity, ABC):
             self.bt_target_cooltemp = adjusted
 
         # If user manually changes the temperature while a preset is active,
-        # update the stored preset temperature so that returning to the preset
-        # later reuses the newly chosen value instead of the originally
-        # configured one. This applies to ALL presets including PRESET_NONE.
-        # Note: We still avoid persisting to config entry options here to
-        # prevent frequent integration reloads; persistence can be handled
-        # via state restore or an explicit save action.
-        if self._preset_mode in self._preset_temperatures and (
-            _new_setpoint is not None or _new_setpointlow is not None
+        # we ONLY update the stored preset temperature if we are in PRESET_NONE (Manual).
+        # For specific presets (Comfort, Eco, etc.), the value is now managed via
+        # separate Number entities and should NOT be overwritten by manual setpoint changes.
+        if (
+            self._preset_mode == PRESET_NONE
+            and self._preset_mode in self._preset_temperatures
+            and (_new_setpoint is not None or _new_setpointlow is not None)
         ):
-            # Only update stored preset temperature for PRESET_NONE (Manual)
-            # For other presets, the value is controlled via Number entities.
-            if self._preset_mode == PRESET_NONE:
-                if self.bt_target_temp is not None:
-                    applied = float(self.bt_target_temp)
-                    old_value = self._preset_temperatures.get(self._preset_mode)
-                    if old_value != applied:
-                        self._preset_temperatures[self._preset_mode] = applied
-                        _LOGGER.debug(
-                            "better_thermostat %s: Updated stored preset temperature for %s from %s to %s due to manual change",
-                            self.device_name,
-                            self._preset_mode,
-                            old_value,
-                            applied,
-                        )
+            if self.bt_target_temp is not None:
+                applied = float(self.bt_target_temp)
+                old_value = self._preset_temperatures.get(self._preset_mode)
+                if old_value != applied:
+                    self._preset_temperatures[self._preset_mode] = applied
+                    _LOGGER.debug(
+                        "better_thermostat %s: Updated stored preset temperature for %s from %s to %s due to manual change",
+                        self.device_name,
+                        self._preset_mode,
+                        old_value,
+                        applied,
+                    )
+                else:
+                    _LOGGER.debug(
+                        "better_thermostat %s: Manual change equals current stored preset %s value=%s; no update",
+                        self.device_name,
+                        self._preset_mode,
+                        applied,
+                    )
 
-            if ATTR_TEMPERATURE in kwargs:
-                _new_setpoint = convert_to_float(
-                    str(kwargs.get(ATTR_TEMPERATURE, None)),
-                    self.device_name,
-                    "controlling.settarget_temperature()",
-                )
+        _LOGGER.debug(
+            "better_thermostat %s: HA set target temperature to %s & %s",
+            self.device_name,
+            self.bt_target_temp,
+            self.bt_target_cooltemp,
+        )
 
-            if ATTR_TARGET_TEMP_LOW in kwargs:
-                _new_setpointlow = convert_to_float(
-                    str(kwargs.get(ATTR_TARGET_TEMP_LOW, None)),
-                    self.device_name,
-                    "controlling.settarget_temperature_low()",
-                )
-
-            if ATTR_TARGET_TEMP_HIGH in kwargs:
-                _new_setpointhigh = convert_to_float(
-                    str(kwargs.get(ATTR_TARGET_TEMP_HIGH, None)),
-                    self.device_name,
-                    "controlling.settarget_temperature_high()",
-                )
-
-            if _new_setpoint is None and _new_setpointlow is None:
-                _LOGGER.debug(
-                    "better_thermostat %s: received a new setpoint from HA, but temperature attribute was not set, ignoring",
-                    self.device_name,
-                )
+        self.async_write_ha_state()
+        # Only trigger control queue if thermostat is not OFF
+        # When OFF, we still save the temperature but don't send it to the physical device
+        if self.bt_hvac_mode != HVACMode.OFF:
+            # During valve maintenance we must not block on the control queue
+            # (Queue maxsize=1) and must not override maintenance.
+            if getattr(self, "in_maintenance", False):
+                self._control_needed_after_maintenance = True
                 return
-
-            # Validate against min/max temps
-            if _new_setpoint is not None:
-                _new_setpoint = min(self.max_temp, max(self.min_temp, _new_setpoint))
-            if _new_setpointlow is not None:
-                _new_setpointlow = min(
-                    self.max_temp, max(self.min_temp, _new_setpointlow)
-                )
-            if _new_setpointhigh is not None:
-                _new_setpointhigh = min(
-                    self.max_temp, max(self.min_temp, _new_setpointhigh)
-                )
-
-            # Preserve explicit 0.0 values (avoid Python truthiness bug)
-            if _new_setpoint is not None:
-                self.bt_target_temp = _new_setpoint
-            else:
-                self.bt_target_temp = _new_setpointlow
-
-            if _new_setpointhigh is not None:
-                self.bt_target_cooltemp = _new_setpointhigh
-
-            # Enforce ordering: cool target should be above heat target (if both in heat_cool mode)
-            if (
-                self.hvac_mode in (HVACMode.HEAT_COOL,)
-                and self.bt_target_cooltemp is not None
-                and self.bt_target_temp is not None
-                and self.bt_target_cooltemp <= self.bt_target_temp
-            ):
-                step = self.bt_target_temp_step or 0.5
-                adjusted = self.bt_target_temp + step
-                _LOGGER.warning(
-                    "better_thermostat %s: cooling target %.2f adjusted to %.2f to stay above heating target %.2f",
-                    self.device_name,
-                    self.bt_target_cooltemp,
-                    adjusted,
-                    self.bt_target_temp,
-                )
-                self.bt_target_cooltemp = adjusted
-
-            # If user manually changes the temperature while a preset is active,
-            # we ONLY update the stored preset temperature if we are in PRESET_NONE (Manual).
-            # For specific presets (Comfort, Eco, etc.), the value is now managed via
-            # separate Number entities and should NOT be overwritten by manual setpoint changes.
-            if (
-                self._preset_mode == PRESET_NONE
-                and self._preset_mode in self._preset_temperatures
-                and (_new_setpoint is not None or _new_setpointlow is not None)
-            ):
-                if self.bt_target_temp is not None:
-                    applied = float(self.bt_target_temp)
-                    old_value = self._preset_temperatures.get(self._preset_mode)
-                    if old_value != applied:
-                        self._preset_temperatures[self._preset_mode] = applied
-                        _LOGGER.debug(
-                            "better_thermostat %s: Updated stored preset temperature for %s from %s to %s due to manual change",
-                            self.device_name,
-                            self._preset_mode,
-                            old_value,
-                            applied,
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "better_thermostat %s: Manual change equals current stored preset %s value=%s; no update",
-                            self.device_name,
-                            self._preset_mode,
-                            applied,
-                        )
-
-            # Enforce ordering: cool target should be above heat target (if both in heat_cool mode)
-            if (
-                self.hvac_mode in (HVACMode.HEAT_COOL,)
-                and self.bt_target_cooltemp is not None
-                and self.bt_target_temp is not None
-                and self.bt_target_cooltemp <= self.bt_target_temp
-            ):
-                step = self.bt_target_temp_step or 0.5
-                adjusted = self.bt_target_temp + step
-                _LOGGER.warning(
-                    "better_thermostat %s: cooling target %.2f adjusted to %.2f to stay above heating target %.2f",
-                    self.device_name,
-                    self.bt_target_cooltemp,
-                    adjusted,
-                    self.bt_target_temp,
-                )
-                self.bt_target_cooltemp = adjusted
-
-            _LOGGER.debug(
-                "better_thermostat %s: HA set target temperature to %s & %s",
-                self.device_name,
-                self.bt_target_temp,
-                self.bt_target_cooltemp,
-            )
-
-            self.async_write_ha_state()
-            # Only trigger control queue if thermostat is not OFF
-            # When OFF, we still save the temperature but don't send it to the physical device
-            if self.bt_hvac_mode != HVACMode.OFF:
-                # During valve maintenance we must not block on the control queue
-                # (Queue maxsize=1) and must not override maintenance.
-                if getattr(self, "in_maintenance", False):
-                    self._control_needed_after_maintenance = True
-                    return
-                await self.control_queue_task.put(self)
+            await self.control_queue_task.put(self)
 
     async def async_turn_off(self) -> None:
         """Turn the entity off."""
@@ -2830,7 +2723,7 @@ class BetterThermostat(ClimateEntity, RestoreEntity, ABC):
                 )
                 return
             # force immediate run
-            self.next_valve_maintenance = datetime.now()
+            self.next_valve_maintenance = dt_util.now()
             await self._run_valve_maintenance(trvs_to_service)
         except Exception:
             _LOGGER.debug(

@@ -103,16 +103,6 @@ def _get_current_solar_intensity(self) -> float:
 
     # 2. UV Index (0-10+) -> Higher is better
     for source in sources:
-        cc = _get_val(source, "cloud_coverage")
-        if cc is not None:
-            try:
-                # 0% clouds = 1.0 intensity, 100% clouds = 0.0 intensity
-                return max(0.0, min(1.0, (100.0 - float(cc)) / 100.0))
-            except (ValueError, TypeError):
-                pass
-
-    # 2. UV Index (0-10+) -> Higher is better
-    for source in sources:
         uv = _get_val(source, "uv_index")
         if uv is not None:
             try:
@@ -383,9 +373,8 @@ def _compute_tpi_balance(self, entity_id: str):
         "debug": getattr(tpi_output, "debug", None),
     }
 
-    _schedule_tpi = self._schedule_save_tpi_states
-    if callable(_schedule_tpi):
-        _schedule_tpi()
+    if callable(getattr(self, "schedule_save_state", None)):
+        self.schedule_save_state()
 
     return tpi_output, supports_valve
 

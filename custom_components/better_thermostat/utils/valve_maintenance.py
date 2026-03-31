@@ -15,6 +15,7 @@ from random import randint
 
 from homeassistant.components.climate.const import HVACMode
 from homeassistant.core import State
+from homeassistant.util import dt as dt_util
 
 from .const import CONF_VALVE_MAINTENANCE, CalibrationType
 
@@ -70,7 +71,7 @@ def compute_next_maintenance(
     random jitter.
     """
     if now is None:
-        now = datetime.now()
+        now = dt_util.now()
 
     min_interval_hours = 168  # default 7 days
     for trv_id in trv_ids:
@@ -91,7 +92,7 @@ def compute_initial_maintenance(
     BT instances don't all fire at once.
     """
     if now is None:
-        now = datetime.now()
+        now = dt_util.now()
 
     min_interval_hours = 168
     for trv_id in trv_ids:

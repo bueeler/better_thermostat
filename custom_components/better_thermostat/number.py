@@ -270,7 +270,7 @@ class BetterThermostatPIDNumber(NumberEntity, RestoreEntity):
         )
         setattr(pid_state, f"pid_{self._parameter}", value)
 
-        self._bt_climate.schedule_save_pid_state()
+        self._bt_climate.schedule_save_state()
         self.async_write_ha_state()
 
 

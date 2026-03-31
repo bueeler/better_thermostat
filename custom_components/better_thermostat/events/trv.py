@@ -5,11 +5,11 @@ helper functions used by the Better Thermostat integration to read and
 convert thermostat states and prepare outbound payloads.
 """
 
-from datetime import datetime
 import logging
 
 from homeassistant.components.climate.const import HVACMode
 from homeassistant.core import State, callback
+from homeassistant.util import dt as dt_util
 
 from custom_components.better_thermostat.adapters.delegate import get_current_offset
 from custom_components.better_thermostat.calibration import (
@@ -133,7 +133,7 @@ async def trigger_trv_change(self, event):
         _new_current_temp is not None
         and self.real_trvs[entity_id]["current_temperature"] != _new_current_temp
         and (
-            (datetime.now() - self.last_internal_sensor_change).total_seconds()
+            (dt_util.now() - self.last_internal_sensor_change).total_seconds()
             > _time_diff
             or (
                 self.real_trvs[entity_id]["calibration_received"] is False
@@ -150,7 +150,7 @@ async def trigger_trv_change(self, event):
             _old_temp,
             _new_current_temp,
         )
-        self.last_internal_sensor_change = datetime.now()
+        self.last_internal_sensor_change = dt_util.now()
         _main_change = True
 
         # async def in controlling? (left as note)
@@ -254,7 +254,7 @@ async def trigger_trv_change(self, event):
     if (
         _new_heating_setpoint is not None
         and _old_heating_setpoint is not None
-        and (self.bt_hvac_mode is not HVACMode.OFF or _is_no_off_device)
+        and (self.bt_hvac_mode != HVACMode.OFF or _is_no_off_device)
     ):
         _LOGGER.debug(
             "better_thermostat %s: trigger_trv_change / _old_heating_setpoint: %s - _new_heating_setpoint: %s - _last_temperature: %s",
@@ -288,7 +288,7 @@ async def trigger_trv_change(self, event):
             and not child_lock
             and self.real_trvs[entity_id]["target_temp_received"] is True
             and self.real_trvs[entity_id]["system_mode_received"] is True
-            and self.real_trvs[entity_id]["hvac_mode"] is not HVACMode.OFF
+            and self.real_trvs[entity_id]["hvac_mode"] != HVACMode.OFF
             and self.window_open is False
             and not self.real_trvs[entity_id].get("ignore_trv_states", False)
         ):
@@ -311,8 +311,8 @@ async def trigger_trv_change(self, event):
                 self.bt_target_temp = _new_heating_setpoint
                 if self.cooler_entity_id is not None:
                     if self.bt_target_temp >= self.bt_target_cooltemp:
-                        self.bt_target_cooltemp = (
-                            self.bt_target_temp + self.bt_target_temp_step
+                        self.bt_target_cooltemp = self.bt_target_temp + (
+                            self.bt_target_temp_step or 0.5
                         )
 
                 _main_change = True
