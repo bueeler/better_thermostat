@@ -39,6 +39,9 @@ async def override_set_temperature(self, entity_id, temperature):
     """Do not override set temperature by default."""
     return False
 
+async def override_set_valve(self, entity_id, percent: int):
+    """Do not override valve by default."""
+    return False
 
 async def inital_tweak(self, entity_id):
     """Run initial tweaks for the device."""
