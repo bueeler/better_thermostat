@@ -2469,6 +2469,10 @@ class BetterThermostat(ClimateEntity, RestoreEntity, ABC):
             )
         return snapshots
 
+    def _compute_hvac_action(self):
+        """Return the current HVAC action enum value."""
+        return self._compute_hvac_action_pure().action
+
     def _compute_hvac_action_pure(self):
         """Compute current HVAC action."""
         return compute_hvac_action(
