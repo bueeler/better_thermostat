@@ -41,7 +41,7 @@ _PATCHES = {
 }
 
 
-def _close_coro(coro):
+def _close_coro(coro, **kwargs):
     """Close coroutine to avoid RuntimeWarning."""
     if inspect.iscoroutine(coro):
         coro.close()

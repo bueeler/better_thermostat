@@ -28,6 +28,7 @@ def mock_hass():
     hass = MagicMock()
     hass.states = MagicMock()
     hass.async_create_task = MagicMock(side_effect=_close_coro)
+    hass.async_create_background_task = MagicMock(side_effect=_close_coro)
     return hass
 
 
@@ -328,7 +329,9 @@ class TestCheckAndUpdateDegradedMode:
 
                 # Should be called for all available optional sensors + room sensor
                 # 4 optional sensors + 1 room sensor = 5 calls
-                assert mock_bt_instance.hass.async_create_task.call_count == 5
+                assert (
+                    mock_bt_instance.hass.async_create_background_task.call_count == 5
+                )
 
 
 class TestAwaitOptionalSensors:
@@ -633,7 +636,9 @@ class TestBatteryStatusCalls:
 
                 assert result is True
                 # Should be called for each available TRV (2 TRVs in fixture)
-                assert mock_bt_instance.hass.async_create_task.call_count == 2
+                assert (
+                    mock_bt_instance.hass.async_create_background_task.call_count == 2
+                )
 
     @pytest.mark.anyio
     async def test_check_critical_entities_no_battery_call_when_unavailable(
