@@ -162,24 +162,32 @@ class TaskManager:
     Tracks created tasks and automatically removes them from the set when they complete.
     """
 
-    def __init__(self):
+    def __init__(self, hass=None):
         """Initialize the task manager with an empty task set."""
         self.tasks = set()
+        self.hass = hass
 
-    def create_task(self, coro):
+    def create_task(self, coro, name=None):
         """Create and track an asyncio task with automatic cleanup on completion.
 
         Parameters
         ----------
         coro : Coroutine
             The coroutine to execute as a task
+        name : str, optional
+            A descriptive name for the background task
 
         Returns
         -------
         asyncio.Task
             The created task
         """
-        task = asyncio.create_task(coro)
+        if self.hass is not None:
+            task = self.hass.async_create_background_task(
+                coro, name=name or "bt_task_manager_task"
+            )
+        else:
+            task = asyncio.create_task(coro)
         self.tasks.add(task)
         task.add_done_callback(self.tasks.discard)
         return task
@@ -206,7 +214,7 @@ async def control_queue(self):
         This function runs indefinitely in an asyncio task
     """
     if not hasattr(self, "task_manager"):
-        self.task_manager = TaskManager()
+        self.task_manager = TaskManager(hass=self.hass)
 
     try:
         while True:
@@ -420,7 +428,7 @@ async def control_trv(self, heater_entity_id=None):
         return False
 
     if not hasattr(self, "task_manager"):
-        self.task_manager = TaskManager()
+        self.task_manager = TaskManager(hass=self.hass)
 
     async with self._temp_lock:
         self.real_trvs[heater_entity_id]["ignore_trv_states"] = True
@@ -575,7 +583,10 @@ async def control_trv(self, heater_entity_id=None):
                 await set_hvac_mode(self, heater_entity_id, _new_hvac_mode)
             if self.real_trvs[heater_entity_id]["system_mode_received"] is True:
                 self.real_trvs[heater_entity_id]["system_mode_received"] = False
-                self.task_manager.create_task(check_system_mode(self, heater_entity_id))
+                self.task_manager.create_task(
+                    check_system_mode(self, heater_entity_id),
+                    name=f"bt_check_system_mode_{heater_entity_id}",
+                )
 
         # set new calibration offset
         if (
@@ -651,7 +662,8 @@ async def control_trv(self, heater_entity_id=None):
                 if self.real_trvs[heater_entity_id]["target_temp_received"] is True:
                     self.real_trvs[heater_entity_id]["target_temp_received"] = False
                     self.task_manager.create_task(
-                        check_target_temperature(self, heater_entity_id)
+                        check_target_temperature(self, heater_entity_id),
+                        name=f"bt_check_target_temp_{heater_entity_id}",
                     )
 
     # Let TRV state updates propagate before accepting new state events

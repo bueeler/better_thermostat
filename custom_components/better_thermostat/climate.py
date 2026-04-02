@@ -515,10 +515,8 @@ class BetterThermostat(ClimateEntity, RestoreEntity, ABC):
         self.control_queue_task = asyncio.Queue(maxsize=1)
         if self.window_id is not None:
             self.window_queue_task = asyncio.Queue(maxsize=1)
-        self._control_task = asyncio.create_task(control_queue(self))
+        self._control_task = None
         self._window_task = None
-        if self.window_id is not None:
-            self._window_task = asyncio.create_task(window_queue(self))
         self.is_removed = False
         # Valve maintenance control
         self.in_maintenance = False
@@ -564,6 +562,14 @@ class BetterThermostat(ClimateEntity, RestoreEntity, ABC):
             return _LOGGER.error(
                 "You updated from version before 1.0.0-Beta36 of the Better Thermostat integration, "
                 "you need to remove the BT devices (integration) and add it again."
+            )
+
+        self._control_task = self.hass.async_create_background_task(
+            control_queue(self), name=f"bt_control_queue_{self.device_name}"
+        )
+        if self.window_id is not None:
+            self._window_task = self.hass.async_create_background_task(
+                window_queue(self), name=f"bt_window_queue_{self.device_name}"
             )
 
         if self.cooler_entity_id is not None:
@@ -678,7 +684,10 @@ class BetterThermostat(ClimateEntity, RestoreEntity, ABC):
             if self.state_mgr is not None:
                 try:
                     self._sync_controllers_to_state()
-                    self.hass.async_create_task(self.state_mgr.flush())
+                    self.hass.async_create_background_task(
+                        self.state_mgr.flush(),
+                        name=f"bt_state_flush_{self.device_name}",
+                    )
                 except RuntimeError:
                     pass
 
@@ -721,7 +730,9 @@ class BetterThermostat(ClimateEntity, RestoreEntity, ABC):
                     All parameters are piped.
             """
             self.context = Context()
-            self.hass.async_create_task(self.startup())
+            self.hass.async_create_background_task(
+                self.startup(), name=f"better_thermostat_startup_{self.device_name}"
+            )
 
         if self.hass.state == CoreState.running:
             _async_startup()
@@ -768,7 +779,10 @@ class BetterThermostat(ClimateEntity, RestoreEntity, ABC):
         self.async_set_context(event.context)
         if (event.data.get("new_state")) is None:
             return
-        self.hass.async_create_task(trigger_temperature_change(self, event))
+        self.hass.async_create_background_task(
+            trigger_temperature_change(self, event),
+            name=f"bt_trigger_temp_change_{self.device_name}",
+        )
 
     async def _external_temperature_keepalive(self, event=None):
         """Re-send the external temperature regularly to the TRVs.
@@ -875,7 +889,10 @@ class BetterThermostat(ClimateEntity, RestoreEntity, ABC):
         if (event.data.get("new_state")) is None:
             return
 
-        self.hass.async_create_task(trigger_trv_change(self, event))
+        self.hass.async_create_background_task(
+            trigger_trv_change(self, event),
+            name=f"bt_trigger_trv_change_{self.device_name}",
+        )
 
     async def _trigger_window_change(self, event):
         _check = await check_critical_entities(self)
@@ -888,7 +905,10 @@ class BetterThermostat(ClimateEntity, RestoreEntity, ABC):
 
         # Only process window changes if window sensor is available
         if is_entity_available(self.hass, self.window_id):
-            self.hass.async_create_task(trigger_window_change(self, event))
+            self.hass.async_create_background_task(
+                trigger_window_change(self, event),
+                name=f"bt_trigger_window_change_{self.device_name}",
+            )
 
     async def _trigger_cooler_change(self, event):
         _check = await check_critical_entities(self)
@@ -899,7 +919,10 @@ class BetterThermostat(ClimateEntity, RestoreEntity, ABC):
         if (event.data.get("new_state")) is None:
             return
 
-        self.hass.async_create_task(trigger_cooler_change(self, event))
+        self.hass.async_create_background_task(
+            trigger_cooler_change(self, event),
+            name=f"bt_trigger_cooler_change_{self.device_name}",
+        )
 
     def _set_trv_calibration_defaults(self, trv):
         """Set default calibration values for TRV."""
@@ -1757,7 +1780,10 @@ class BetterThermostat(ClimateEntity, RestoreEntity, ABC):
             _LOGGER.debug(
                 "better_thermostat %s: creating keepalive task...", self.device_name
             )
-            self.hass.async_create_task(self._external_temperature_keepalive())
+            self.hass.async_create_background_task(
+                self._external_temperature_keepalive(),
+                name=f"bt_ext_temp_keepalive_{self.device_name}",
+            )
         except Exception as exc:
             _LOGGER.error(
                 "better_thermostat %s: Failed to create external temperature keepalive task: %s",
@@ -1825,7 +1851,10 @@ class BetterThermostat(ClimateEntity, RestoreEntity, ABC):
             return
 
         # Run maintenance asynchronously (don't block the tick)
-        self.hass.async_create_task(self._run_valve_maintenance(trvs_to_service))
+        self.hass.async_create_background_task(
+            self._run_valve_maintenance(trvs_to_service),
+            name=f"bt_valve_maintenance_{self.device_name}",
+        )
 
     async def _run_valve_maintenance(self, trvs: list[str]) -> None:
         """Perform valve exercise: open fully, then close, restore state, and reschedule.
@@ -2917,7 +2946,10 @@ class BetterThermostat(ClimateEntity, RestoreEntity, ABC):
         if self.hass is None:
             return
         # Schedule without waiting; state updates will propagate asynchronously.
-        self.hass.async_create_task(self.async_set_preset_mode(preset_mode))
+        self.hass.async_create_background_task(
+            self.async_set_preset_mode(preset_mode),
+            name=f"bt_set_preset_{self.device_name}",
+        )
 
     @property
     def preset_modes(self):
