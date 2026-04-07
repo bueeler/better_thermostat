@@ -182,5 +182,20 @@
         "name": "PID Auto-Tuning"
       }
     }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "heating_active": "Thermostat wechselt in Heizmodus",
+      "heating_stopped": "Thermostat stoppt Heizung",
+      "humidity_high": "Luftfeuchtigkeit überschreitet Schwellenwert",
+      "window_opened": "Fenster geöffnet",
+      "window_closed": "Fenster geschlossen",
+      "battery_low": "Batterie schwach",
+      "device_error": "Gerätefehler erkannt",
+      "target_temp_reached": "Zieltemperatur erreicht",
+      "hvac_mode_changed": "HVAC-Modus geändert",
+      "current_temperature_changed": "Aktuelle Temperatur geändert",
+      "current_humidity_changed": "Aktuelle Luftfeuchtigkeit geändert"
+    }
   }
 }

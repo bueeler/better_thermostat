@@ -171,10 +171,10 @@ async def check_weather_prediction(self) -> bool | None:
                         "check_weather_prediction()",
                     )
                 )
-            temps = [t for t in temps if isinstance(t, (int, float))]
+            valid_temps: list[float] = [t for t in temps if isinstance(t, (int, float))]
             max_forecast_temp = None
-            if temps:
-                max_forecast_temp = sum(temps) / float(len(temps))
+            if valid_temps:
+                max_forecast_temp = sum(valid_temps) / float(len(valid_temps))
 
             cond_cur = (
                 isinstance(cur_outside_temp, (int, float))
@@ -314,7 +314,7 @@ class DailyHistory:
 
     def add_measurement(self, value, timestamp=None):
         """Add a new measurement for a certain day (value: float)."""
-        day = (timestamp or datetime.now()).date()
+        day = (timestamp or dt_util.now()).date()
         if not isinstance(value, (int, float)):
             return
         if self._days is None:

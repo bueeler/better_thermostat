@@ -104,5 +104,20 @@
       }
     }
   },
-  "services": {}
+  "services": {},
+  "device_automation": {
+    "trigger_type": {
+      "heating_active": "Termostat przełącza się na ogrzewanie",
+      "heating_stopped": "Termostat zatrzymuje ogrzewanie",
+      "humidity_high": "Wilgotność przekracza próg",
+      "window_opened": "Okno otwarte",
+      "window_closed": "Okno zamknięte",
+      "battery_low": "Niski poziom baterii",
+      "device_error": "Wykryto błąd urządzenia",
+      "target_temp_reached": "Docelowa temperatura osiągnięta",
+      "hvac_mode_changed": "Tryb HVAC zmieniony",
+      "current_temperature_changed": "Aktualna temperatura zmieniona",
+      "current_humidity_changed": "Aktualna wilgotność zmieniona"
+    }
+  }
 }

@@ -5,11 +5,11 @@ helper functions used by the Better Thermostat integration to read and
 convert thermostat states and prepare outbound payloads.
 """
 
-from datetime import datetime
 import logging
 
 from homeassistant.components.climate.const import HVACMode
 from homeassistant.core import State, callback
+from homeassistant.util import dt as dt_util
 
 from custom_components.better_thermostat.adapters.delegate import get_current_offset
 from custom_components.better_thermostat.calibration import (
@@ -49,7 +49,7 @@ async def trigger_trv_change(self, event):
     new_state = event.data.get("new_state")
     entity_id = event.data.get("entity_id")
 
-    if None in (new_state, old_state, new_state.attributes):
+    if new_state is None or old_state is None or new_state.attributes is None:
         _LOGGER.debug(
             "better_thermostat %s: TRV %s update contained not all necessary data for processing, skipping",
             self.device_name,
@@ -73,6 +73,14 @@ async def trigger_trv_change(self, event):
     # _LOGGER.debug(f"better_thermostat {self.device_name}: TRV {entity_id} update received")
 
     _org_trv_state = self.hass.states.get(entity_id)
+    if _org_trv_state is None:
+        _LOGGER.debug(
+            "better_thermostat %s: TRV %s state not found in registry, skipping",
+            self.device_name,
+            entity_id,
+        )
+        return
+
     child_lock = self.real_trvs[entity_id]["advanced"].get("child_lock")
 
     # Dynamische Modell-Erkennung: nur einmalig (z. B. beim Start) – nicht bei jedem Event
@@ -125,7 +133,7 @@ async def trigger_trv_change(self, event):
         _new_current_temp is not None
         and self.real_trvs[entity_id]["current_temperature"] != _new_current_temp
         and (
-            (datetime.now() - self.last_internal_sensor_change).total_seconds()
+            (dt_util.now() - self.last_internal_sensor_change).total_seconds()
             > _time_diff
             or (
                 self.real_trvs[entity_id]["calibration_received"] is False
@@ -142,7 +150,7 @@ async def trigger_trv_change(self, event):
             _old_temp,
             _new_current_temp,
         )
-        self.last_internal_sensor_change = datetime.now()
+        self.last_internal_sensor_change = dt_util.now()
         _main_change = True
 
         # async def in controlling? (left as note)
@@ -240,10 +248,13 @@ async def trigger_trv_change(self, event):
         self.device_name,
         "trigger_trv_change()",
     )
+    _is_no_off_device = self.real_trvs[entity_id]["advanced"].get(
+        "no_off_system_mode", False
+    )
     if (
         _new_heating_setpoint is not None
         and _old_heating_setpoint is not None
-        and self.bt_hvac_mode is not HVACMode.OFF
+        and (self.bt_hvac_mode != HVACMode.OFF or _is_no_off_device)
     ):
         _LOGGER.debug(
             "better_thermostat %s: trigger_trv_change / _old_heating_setpoint: %s - _new_heating_setpoint: %s - _last_temperature: %s",
@@ -277,8 +288,9 @@ async def trigger_trv_change(self, event):
             and not child_lock
             and self.real_trvs[entity_id]["target_temp_received"] is True
             and self.real_trvs[entity_id]["system_mode_received"] is True
-            and self.real_trvs[entity_id]["hvac_mode"] is not HVACMode.OFF
+            and self.real_trvs[entity_id]["hvac_mode"] != HVACMode.OFF
             and self.window_open is False
+            and not self.real_trvs[entity_id].get("ignore_trv_states", False)
         ):
             _calibration_type = self.real_trvs[entity_id]["advanced"].get("calibration")
             if _calibration_type == CalibrationType.TARGET_TEMP_BASED:
@@ -298,13 +310,9 @@ async def trigger_trv_change(self, event):
                 )
                 self.bt_target_temp = _new_heating_setpoint
                 if self.cooler_entity_id is not None:
-                    if self.bt_target_temp <= self.bt_target_cooltemp:
-                        self.bt_target_cooltemp = (
-                            self.bt_target_temp - self.bt_target_temp_step
-                        )
                     if self.bt_target_temp >= self.bt_target_cooltemp:
-                        self.bt_target_cooltemp = (
-                            self.bt_target_temp - self.bt_target_temp_step
+                        self.bt_target_cooltemp = self.bt_target_temp + (
+                            self.bt_target_temp_step or 0.5
                         )
 
                 _main_change = True
@@ -456,5 +464,10 @@ def convert_outbound_states(self, entity_id, hvac_mode) -> dict | None:
             _payload["valve_position"] = _new_valve_position
         return _payload
     except Exception as e:
-        _LOGGER.error(e)
+        _LOGGER.exception(
+            "better_thermostat %s: exception in convert_outbound_states for %s: %s",
+            self.device_name,
+            entity_id,
+            e,
+        )
         return None

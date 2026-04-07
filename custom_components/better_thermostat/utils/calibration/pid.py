@@ -16,9 +16,35 @@ from __future__ import annotations
 from dataclasses import dataclass
 import logging
 from time import monotonic
-from typing import Any
+from typing import Any, TypedDict
 
 _LOGGER = logging.getLogger(__name__)
+
+
+class PIDDebugInfo(TypedDict, total=False):
+    """Debug information from PID controller."""
+
+    mode: str
+    error: str
+    dt_s: float | None
+    e_K: float | None
+    p: float | None
+    i: float | None
+    d: float | None
+    u: float | None
+    kp: float | None
+    ki: float | None
+    kd: float | None
+    anti_windup_blocked: bool
+    i_relief: bool
+    slope_in: float | None
+    slope_ema: float | None
+    meas_current_used: float | None
+    meas_external_raw: float | None
+    meas_trv_C: float | None
+    meas_smooth_C: float | None
+    d_meas_per_s: float | None
+    hold_time_rem: int
 
 
 # --- PID State -----------------------------------------------
@@ -122,24 +148,51 @@ def compute_pid(
     inp_temp_slope_K_per_min: float | None,
     key: str,
     inp_current_temp_ema_C: float | None = None,
-) -> tuple[float, dict[str, Any]]:
+    max_opening_pct: float | None = None,
+    state: PIDState | None = None,
+) -> tuple[float, PIDDebugInfo, PIDState]:
     """Compute PID-based valve opening percentage.
 
-    Args:
-        params: PID parameters
-        inp_target_temp_C: Target temperature
-        inp_current_temp_C: Current external temperature
-        inp_trv_temp_C: TRV internal temperature
-        inp_temp_slope_K_per_min: Temperature slope
-        key: Unique key for state storage
-        inp_current_temp_ema_C: Optional EMA-filtered external temperature for learning
+    Parameters
+    ----------
+    params:
+        PID tuning parameters.
+    inp_target_temp_C:
+        Target temperature.
+    inp_current_temp_C:
+        Current external temperature.
+    inp_trv_temp_C:
+        TRV internal temperature.
+    inp_temp_slope_K_per_min:
+        Temperature slope.
+    key:
+        Unique key for state storage.
+    inp_current_temp_ema_C:
+        Optional EMA-filtered external temperature for learning.
+    max_opening_pct:
+        Optional maximum valve opening percentage.
+    state:
+        Mutable controller state.  When ``None`` the function falls back
+        to the module-level ``_PID_STATES`` dict for backwards
+        compatibility, but callers are encouraged to pass state explicitly.
 
     Returns
     -------
-        Tuple of (percent_open, debug_info)
+    tuple[float, PIDDebugInfo, PIDState]
+        ``(percent_open, debug_info, updated_state)``.
     """
     now = monotonic()
-    st = _PID_STATES.setdefault(key, PIDState())
+
+    # --- Resolve state ---
+    if state is None:
+        st = _PID_STATES.setdefault(key, PIDState())
+    else:
+        st = state
+        _PID_STATES[key] = st
+
+    max_opening = 100.0
+    if isinstance(max_opening_pct, (int, float)):
+        max_opening = max(0.0, min(100.0, float(max_opening_pct)))
 
     _LOGGER.debug(
         "better_thermostat PID: input for %s: target=%.1f current=%.1f trv=%.1f slope=%.3f kp=%.1f ki=%.3f kd=%.1f",
@@ -162,8 +215,8 @@ def compute_pid(
     if inp_target_temp_C is None or current_temp is None:
         # Without temperatures we can only keep the previous value
         percent = 0.0
-        pid_dbg = {"mode": "pid", "error": "no_temps"}
-        return percent, pid_dbg
+        pid_dbg: PIDDebugInfo = {"mode": "pid", "error": "no_temps"}
+        return percent, pid_dbg, st
 
     delta_T = inp_target_temp_C - current_temp
     e = delta_T
@@ -248,7 +301,7 @@ def compute_pid(
         # Vorläufige Stellgröße ohne Sättigung prüfen
         u_prop = p_term + i_prop + d_term
         # Gesättigte Stellgröße
-        u_sat = max(0.0, min(100.0, u_prop))
+        u_sat = max(0.0, min(max_opening, u_prop))
         # Falls gesättigt und Fehler die Sättigung verstärken würde → Integration blockieren
         if (u_prop > u_sat and e > 0) or (u_prop < u_sat and e < 0):
             i_term = i_prev
@@ -282,7 +335,7 @@ def compute_pid(
 
     # --- Slew-Rate & Hold-Time Logic ---
     # 1. Calculate raw desired change (unlimited)
-    percent_unlimited = max(0.0, min(100.0, u))
+    percent_unlimited = max(0.0, min(max_opening, u))
     raw_change = percent_unlimited - st.last_percent
 
     # 2. Check for Big Change (Bypass filters)
@@ -399,7 +452,7 @@ def compute_pid(
         st.pid_integral,
     )
 
-    return percent, pid_dbg
+    return percent, pid_dbg, st
 
 
 def _auto_tune_pid(
