@@ -1,7 +1,13 @@
+MIN_OFFSET = -0.5
+MAX_OFFSET = 0.8
+
+
 def fix_local_calibration(self, entity_id, offset):
-    ## do not allow negative offset
-    if offset < 0:
-        offset = 0
+    ## limit offset
+    if offset < MIN_OFFSET:
+        offset = MIN_OFFSET
+    elif offset > MAX_OFFSET:
+        offset = MAX_OFFSET
     return offset
 
 
