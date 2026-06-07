@@ -83,6 +83,14 @@ async def set_offset(self, entity_id, offset):
     if setback <= MIN_SETBACK:
         setback = MIN_SETBACK
 
+    _LOGGER.debug(
+        "better_thermostat %s: %s setOverride setback=%s (offset=%s)",
+        self.device_name,
+        entity_id,
+        setback,
+        offset,
+    )
+
     if setback == 0:
         await self.hass.services.async_call(
             "zwave_js",
@@ -99,7 +107,9 @@ async def set_offset(self, entity_id, offset):
             blocking=True,
             context=self.context,
         )
-    self.real_trvs[entity_id]["last_calibration"] = offset
+    # Pin at 0
+    # Setback back into last_calibration would drift and saturate.
+    self.real_trvs[entity_id]["last_calibration"] = 0
 
 
 async def set_valve(self, entity_id, valve):
